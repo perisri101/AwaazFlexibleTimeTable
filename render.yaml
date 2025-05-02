@@ -16,10 +16,10 @@ services:
       - key: WEB_CONCURRENCY
         value: 4
       - key: GIT_USER_NAME
-        value: "AwaazFlexyTimeTable App"
+        value: "perisri101"
       - key: GIT_USER_EMAIL
-        value: "app@awaazflexytimetable.onrender.com"
+        value: "perisri101@gmail.com 
       - key: GITHUB_TOKEN
         sync: false # This will be set manually in the Render dashboard
       - key: GIT_REPOSITORY_URL
-        value: "https://github.com/perisri101/AwaazFlexyTimeTable.git" 
+        value: "https://github.com/perisri101/AwaazFlexibleTimeTable.git" 

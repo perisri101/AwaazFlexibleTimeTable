@@ -2,8 +2,10 @@
   "name": "MariaB",
   "initials": "MB",
   "performance_score": "",
-  "default_hourly_rate": "",
+  "default_hourly_rate": "20",
+  "hourly_rate": "20",
   "id": "20250501201547",
+  "picture": "",
   "location_rates": [
     {
       "location": "Turlock",
@@ -13,6 +15,5 @@
       "location": "SJ",
       "rate": 27
     }
-  ],
-  "hourly_rate": ""
+  ]
 }

@@ -69,16 +69,16 @@ def check_environment():
     # Provide recommendations for missing variables
     missing_vars = []
     if env_vars["GIT_USER_NAME"] == "Not set":
-        missing_vars.append("GIT_USER_NAME (recommended: 'AwaazFlexyTimeTable App')")
+        missing_vars.append("GIT_USER_NAME (recommended: 'AwaazFlexibleTimeTable App')")
     
     if env_vars["GIT_USER_EMAIL"] == "Not set":
-        missing_vars.append("GIT_USER_EMAIL (recommended: 'app@awaazflexytimetable.onrender.com')")
+        missing_vars.append("GIT_USER_EMAIL (recommended: 'perisri101@gmail.com')")
     
     if env_vars["GITHUB_TOKEN"] == "Not set":
         missing_vars.append("GITHUB_TOKEN (required for Git push operations)")
     
     if env_vars["GIT_REPOSITORY_URL"] == "Not set":
-        missing_vars.append("GIT_REPOSITORY_URL (recommended: 'https://github.com/perisri101/AwaazFlexyTimeTable.git')")
+        missing_vars.append("GIT_REPOSITORY_URL (recommended: 'https://github.com/perisri101/AwaazFlexibleTimeTable.git')")
     
     if missing_vars:
         print("\nRecommended environment variables that are missing:")
