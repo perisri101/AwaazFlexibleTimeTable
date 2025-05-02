@@ -1,7 +1,15 @@
 {
-  "name": "CG4",
+  "name": "Amanda G",
+  "initials": "",
   "performance_score": "",
-  "hourly_rate": "",
-  "location": "",
-  "id": "20250501164239"
+  "default_hourly_rate": "",
+  "id": "20250501164239",
+  "picture": "",
+  "location_rates": [
+    {
+      "location": "Turlock",
+      "rate": 20
+    }
+  ],
+  "hourly_rate": ""
 }

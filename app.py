@@ -43,7 +43,7 @@ if git_user_name and git_user_email:
 def git_add_commit(commit_message, files=None):
     """Add and commit changes to Git, and optionally push to remote."""
     # Check if in development mode or explicitly allowed in production
-    if app.config['ENV'].lower() != 'development' and not os.environ.get('ALLOW_GIT_IN_PRODUCTION', 'false').lower() == 'true':
+    if app.config['ENVIRONMENT'].lower() != 'development' and not os.environ.get('ALLOW_GIT_IN_PRODUCTION', 'false').lower() == 'true':
         app.logger.info("Git operations skipped in production. Set ALLOW_GIT_IN_PRODUCTION=true to enable.")
         return False, "Git operations disabled in production"
     
@@ -124,8 +124,8 @@ For detailed setup instructions, see render_environment_setup.md
 
 # Routes
 @app.route('/')
-def index():
-    return render_template('index.html')
+def hello_world():
+    return render_template('index.html');
 
 # API Routes for Caregivers
 @app.route('/api/caregivers', methods=['GET'])

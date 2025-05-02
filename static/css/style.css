@@ -351,4 +351,6 @@ select[multiple] option:checked {
     .location-rate-item .col-md-1 {
         margin-top: 0.5rem;
     }
-} 
+}
+
+/* Additional styles can be added here */ 
