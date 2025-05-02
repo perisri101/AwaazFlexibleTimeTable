@@ -435,6 +435,9 @@
                                     <button id="save-env-btn" class="btn btn-sm btn-primary">
                                         <i class="fas fa-save"></i> Save Changes
                                     </button>
+                                    <button id="apply-repo-url-btn" class="btn btn-sm btn-warning">
+                                        <i class="fas fa-link"></i> Apply Repository URL
+                                    </button>
                                 </div>
                             </div>
                             <div class="card-body">
@@ -493,6 +496,13 @@
                                 
                                 <div class="alert alert-info">
                                     <i class="fas fa-info-circle"></i> Changes to environment variables will be saved to the <code>.env</code> file and will persist across application restarts.
+                                </div>
+
+                                <div class="mt-3">
+                                    <button id="initialize-repo-btn" class="btn btn-danger">
+                                        <i class="fas fa-exclamation-triangle"></i> Initialize/Reset Git Repository
+                                    </button>
+                                    <small class="text-muted d-block mt-1">Use this only if you need to completely reset the Git configuration</small>
                                 </div>
                             </div>
                         </div>

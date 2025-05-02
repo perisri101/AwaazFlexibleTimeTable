@@ -1448,6 +1448,133 @@ def update_env_variables():
             'error': str(e)
         }), 500
 
+@app.route('/api/git/set-remote', methods=['POST'])
+def set_git_remote():
+    """Set the Git remote repository URL."""
+    try:
+        data = request.json
+        url = data.get('url')
+        
+        if not url:
+            return jsonify({'success': False, 'error': 'No URL provided'}), 400
+        
+        # Check if remote exists
+        try:
+            subprocess.check_output(['git', 'remote']).decode().strip()
+            # Update existing remote
+            subprocess.run(['git', 'remote', 'set-url', 'origin', url], check=True)
+            action = "Updated"
+        except:
+            # Add new remote
+            subprocess.run(['git', 'remote', 'add', 'origin', url], check=True)
+            action = "Added"
+        
+        # Update environment variable
+        os.environ['GIT_REPOSITORY_URL'] = url
+        
+        # Save to .env file
+        try:
+            env_path = os.path.join(os.getcwd(), '.env')
+            
+            # Read existing .env file if it exists
+            env_vars = {}
+            if os.path.exists(env_path):
+                with open(env_path, 'r') as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith('#') and '=' in line:
+                            key, value = line.split('=', 1)
+                            env_vars[key.strip()] = value.strip()
+            
+            # Update with new URL
+            env_vars['GIT_REPOSITORY_URL'] = url
+            
+            # Write back to .env file
+            with open(env_path, 'w') as f:
+                for key, value in env_vars.items():
+                    # Quote values with spaces
+                    if ' ' in value and not (value.startswith('"') and value.endswith('"')):
+                        value = f'"{value}"'
+                    f.write(f"{key}={value}\n")
+        except Exception as e:
+            app.logger.warning(f"Failed to update .env file: {str(e)}")
+        
+        # Try to fetch from the remote to verify it works
+        try:
+            subprocess.run(['git', 'fetch', 'origin'], check=False, capture_output=True, timeout=5)
+            remote_verified = True
+        except:
+            remote_verified = False
+        
+        return jsonify({
+            'success': True,
+            'message': f"{action} remote 'origin' with URL: {url}",
+            'remote_verified': remote_verified
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/git/initialize', methods=['POST'])
+def initialize_git_repository():
+    """Initialize or reset Git repository."""
+    try:
+        # Check if .git directory exists
+        if os.path.exists('.git'):
+            # Repository exists, just reset it
+            try:
+                # Get current branch
+                current_branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).decode().strip()
+                
+                # Reset to clean state
+                subprocess.run(['git', 'reset', '--hard'], check=True)
+                subprocess.run(['git', 'clean', '-fd'], check=True)
+                
+                message = f"Reset existing Git repository (branch: {current_branch})"
+            except:
+                message = "Reset existing Git repository"
+        else:
+            # Initialize new repository
+            subprocess.run(['git', 'init'], check=True)
+            message = "Initialized new Git repository"
+        
+        # Configure Git user if needed
+        git_user_name = os.environ.get('GIT_USER_NAME')
+        git_user_email = os.environ.get('GIT_USER_EMAIL')
+        
+        if git_user_name:
+            subprocess.run(['git', 'config', '--global', 'user.name', git_user_name], check=True)
+        
+        if git_user_email:
+            subprocess.run(['git', 'config', '--global', 'user.email', git_user_email], check=True)
+        
+        # Set up remote if URL is available
+        repo_url = os.environ.get('GIT_REPOSITORY_URL')
+        if repo_url:
+            try:
+                # Check if remote exists
+                remotes = subprocess.check_output(['git', 'remote']).decode().strip().split('\n')
+                if 'origin' in remotes:
+                    subprocess.run(['git', 'remote', 'set-url', 'origin', repo_url], check=True)
+                else:
+                    subprocess.run(['git', 'remote', 'add', 'origin', repo_url], check=True)
+                
+                message += f" and configured remote 'origin' with URL: {repo_url}"
+            except:
+                message += " but failed to configure remote"
+        
+        return jsonify({
+            'success': True,
+            'message': message
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 if __name__ == '__main__':
     # Use environment variables for host and port if available
     port = int(os.environ.get('PORT', 8000))

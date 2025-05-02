@@ -339,6 +339,85 @@ $(document).ready(function() {
         $('#git-troubleshooter').hide();
         $('#env-variables-section').hide();
     });
+
+    // Apply Repository URL
+    $(document).on('click', '#apply-repo-url-btn', function() {
+        const repoUrl = $('#env-git-repo-url-input').val();
+        
+        if (!repoUrl) {
+            showNotification('Please enter a repository URL first', 'warning');
+            return;
+        }
+        
+        if (confirm(`This will set the remote repository URL to:\n${repoUrl}\n\nContinue?`)) {
+            $.ajax({
+                url: '/api/git/set-remote',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ url: repoUrl }),
+                success: function(response) {
+                    if (response.success) {
+                        showNotification('Repository URL applied successfully', 'success');
+                        // Refresh Git test results if they're visible
+                        if ($('#git-test-results').is(':visible')) {
+                            setTimeout(function() {
+                                $('#test-git-btn').click();
+                            }, 1000);
+                        }
+                    } else {
+                        showNotification('Error applying repository URL: ' + response.error, 'danger');
+                    }
+                },
+                error: function(xhr) {
+                    let errorMsg = 'Error applying repository URL';
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        if (response.error) {
+                            errorMsg += ': ' + response.error;
+                        }
+                    } catch (e) {
+                        errorMsg += ': ' + xhr.statusText;
+                    }
+                    showNotification(errorMsg, 'danger');
+                }
+            });
+        }
+    });
+
+    // Initialize/Reset Git Repository
+    $(document).on('click', '#initialize-repo-btn', function() {
+        if (confirm('WARNING: This will initialize or reset the Git repository. Any uncommitted changes may be lost. Continue?')) {
+            $.ajax({
+                url: '/api/git/initialize',
+                type: 'POST',
+                success: function(response) {
+                    if (response.success) {
+                        showNotification(response.message, 'success');
+                        // Refresh Git test results if they're visible
+                        if ($('#git-test-results').is(':visible')) {
+                            setTimeout(function() {
+                                $('#test-git-btn').click();
+                            }, 1000);
+                        }
+                    } else {
+                        showNotification('Error initializing repository: ' + response.error, 'danger');
+                    }
+                },
+                error: function(xhr) {
+                    let errorMsg = 'Error initializing repository';
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        if (response.error) {
+                            errorMsg += ': ' + response.error;
+                        }
+                    } catch (e) {
+                        errorMsg += ': ' + xhr.statusText;
+                    }
+                    showNotification(errorMsg, 'danger');
+                }
+            });
+        }
+    });
 });
 
 // Initialize application
