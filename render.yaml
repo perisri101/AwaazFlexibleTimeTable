@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: awaazflexytimetable
+    name: awaazflexibletimetable
     env: python
     buildCommand: ./build.sh
     startCommand: gunicorn app:app

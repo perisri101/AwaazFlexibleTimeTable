@@ -1,7 +1,10 @@
 {
-  "name": "CG2",
+  "name": "Peri",
+  "initials": "",
   "performance_score": "",
-  "hourly_rate": "",
-  "location": "",
-  "id": "20250501161439"
+  "default_hourly_rate": "",
+  "id": "20250501161439",
+  "picture": "",
+  "location_rates": [],
+  "hourly_rate": ""
 }

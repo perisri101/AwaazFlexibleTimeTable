@@ -62,13 +62,13 @@ def git_add_commit(commit_message, files=None):
         try:
             user_name = subprocess.check_output(['git', 'config', 'user.name']).decode().strip()
         except subprocess.CalledProcessError:
-            git_user_name = os.environ.get('GIT_USER_NAME', 'AwaazFlexyTimeTable App')
+            git_user_name = os.environ.get('GIT_USER_NAME', 'perisri101')
             subprocess.run(['git', 'config', 'user.name', git_user_name], check=True)
             
         try:
             user_email = subprocess.check_output(['git', 'config', 'user.email']).decode().strip()
         except subprocess.CalledProcessError:
-            git_user_email = os.environ.get('GIT_USER_EMAIL', 'app@awaazflexytimetable.onrender.com')
+            git_user_email = os.environ.get('GIT_USER_EMAIL', 'perisri101@.com')
             subprocess.run(['git', 'config', 'user.email', git_user_email], check=True)
         
         # Commit changes
