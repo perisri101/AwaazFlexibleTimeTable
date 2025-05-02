@@ -2,9 +2,9 @@
   "name": "Peri",
   "initials": "",
   "performance_score": "",
-  "default_hourly_rate": "",
+  "default_hourly_rate": "20",
+  "hourly_rate": "20",
   "id": "20250501161439",
   "picture": "",
-  "location_rates": [],
-  "hourly_rate": ""
+  "location_rates": []
 }
