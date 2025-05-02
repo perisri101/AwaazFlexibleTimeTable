@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: awaazflexytimetable
+    env: python
+    buildCommand: ./build.sh
+    startCommand: gunicorn app:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.9.0
+      - key: SECRET_KEY
+        generateValue: true
+      - key: FLASK_ENV
+        value: development
+      - key: GIT_AUTO_PUSH
+        value: true
+      - key: WEB_CONCURRENCY
+        value: 4
+      - key: GIT_USER_NAME
+        value: "AwaazFlexyTimeTable App"
+      - key: GIT_USER_EMAIL
+        value: "app@awaazflexytimetable.onrender.com"
+      - key: GITHUB_TOKEN
+        sync: false # This will be set manually in the Render dashboard
+      - key: GIT_REPOSITORY_URL
+        value: "https://github.com/perisri101/AwaazFlexyTimeTable.git" 

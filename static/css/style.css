@@ -1,0 +1,354 @@
+/* Sidebar Styles */
+.sidebar {
+    min-height: 100vh;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    z-index: 100;
+    padding: 0;
+    box-shadow: inset -1px 0 0 rgba(0, 0, 0, .1);
+}
+
+.sidebar .nav-link {
+    font-weight: 500;
+    color: #ccc;
+    padding: 0.75rem 1rem;
+    border-radius: 0.25rem;
+    margin: 0.25rem 0;
+}
+
+.sidebar .nav-link:hover {
+    color: #fff;
+    background-color: rgba(255, 255, 255, .1);
+}
+
+.sidebar .nav-link.active {
+    color: #fff;
+    background-color: rgba(255, 255, 255, .2);
+}
+
+.sidebar .nav-link i {
+    margin-right: 10px;
+    width: 20px;
+    text-align: center;
+}
+
+/* Content Section Styles */
+.content-section {
+    display: none;
+}
+
+.content-section.active {
+    display: block;
+}
+
+/* Table Styles */
+.table img.caregiver-img {
+    width: 40px;
+    height: 40px;
+    object-fit: cover;
+    border-radius: 50%;
+}
+
+.action-buttons .btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.8rem;
+}
+
+/* Template and Calendar Cards */
+.template-card, .calendar-card {
+    margin-bottom: 1.5rem;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.template-card:hover, .calendar-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+/* Schedule Table Styles */
+#schedule-table td {
+    height: 80px;
+    vertical-align: middle;
+    padding: 0.5rem;
+}
+
+.schedule-block {
+    min-height: 60px;
+    border-radius: 0.25rem;
+    padding: 0.5rem;
+    margin: 0;
+    background-color: #f8f9fa;
+    cursor: pointer;
+    border: 1px solid #dee2e6;
+    transition: all 0.3s;
+    overflow-y: auto;
+    max-height: 120px;
+    font-size: 0.85rem;
+}
+
+.schedule-block:hover {
+    background-color: #e9ecef;
+    transform: scale(1.02);
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.schedule-block.has-data {
+    background-color: #d1ecf1;
+    border-color: #bee5eb;
+}
+
+.schedule-block .caregiver-name {
+    font-weight: 400;
+    margin-bottom: 0.2rem;
+}
+
+.schedule-block .caregiver-name strong {
+    font-weight: 600;
+    color: #0d6efd;
+}
+
+.schedule-block .activity-name {
+    font-style: normal;
+    margin-bottom: 0.2rem;
+}
+
+.schedule-block .activity-name strong {
+    font-weight: 600;
+    color: #198754;
+}
+
+.schedule-block .notes {
+    font-size: 0.8rem;
+    color: #6c757d;
+    margin-top: 0.3rem;
+    border-top: 1px dashed #dee2e6;
+    padding-top: 0.3rem;
+}
+
+/* Multi-select styling */
+select[multiple] {
+    overflow-y: auto;
+}
+
+select[multiple] option {
+    padding: 0.5rem;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+select[multiple] option:checked {
+    background-color: #d1ecf1;
+    color: #000;
+}
+
+/* Calendar Block Styles */
+#calendar-table .schedule-block.past {
+    background-color: #f8f9fa;
+    opacity: 0.7;
+}
+
+#calendar-table .schedule-block.today {
+    background-color: #fff3cd;
+    border-color: #ffeeba;
+}
+
+#calendar-table .schedule-block.future {
+    background-color: #d4edda;
+    border-color: #c3e6cb;
+}
+
+/* Calendar View Styles */
+#calendar-view-table {
+    table-layout: fixed;
+    width: 100%;
+}
+
+#calendar-view-table th {
+    text-align: center;
+    vertical-align: middle;
+}
+
+#calendar-view-table tbody td {
+    height: 80px;
+    vertical-align: middle;
+    padding: 0.5rem;
+}
+
+#calendar-dates-header th {
+    font-size: 0.9rem;
+    padding: 0.4rem;
+    background-color: #f8f9fa;
+}
+
+.today-header {
+    background-color: #fff3cd !important;
+    font-weight: bold;
+    position: relative;
+}
+
+.today-header::after {
+    content: "Today";
+    position: absolute;
+    top: 0;
+    right: 0;
+    font-size: 0.7rem;
+    background-color: #ffc107;
+    color: #000;
+    padding: 0.1rem 0.3rem;
+    border-radius: 0 0 0 0.25rem;
+}
+
+.calendar-block {
+    min-height: 60px;
+    border-radius: 0.25rem;
+    padding: 0.5rem;
+    margin: 0;
+    cursor: default;
+    border: 1px solid #dee2e6;
+    overflow-y: auto;
+    max-height: 120px;
+    font-size: 0.85rem;
+}
+
+.calendar-block.past {
+    background-color: #f8f9fa;
+    color: #6c757d;
+}
+
+.calendar-block.today {
+    background-color: #fff3cd;
+    border-color: #ffeeba;
+    box-shadow: 0 0 0.25rem rgba(255, 193, 7, 0.5);
+}
+
+.calendar-block.future {
+    background-color: #d1ecf1;
+    border-color: #bee5eb;
+}
+
+.calendar-block.has-data:hover {
+    transform: scale(1.02);
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.calendar-block .date-label {
+    font-size: 0.75rem;
+    background-color: rgba(0, 0, 0, 0.05);
+    padding: 0.1rem 0.3rem;
+    border-radius: 0.25rem;
+    float: right;
+    margin-bottom: 0.3rem;
+}
+
+#week-display {
+    font-size: 1rem;
+    padding: 0.5rem 1rem;
+}
+
+@media print {
+    body * {
+        visibility: hidden;
+    }
+    
+    #calendarViewModal,
+    #calendarViewModal * {
+        visibility: visible;
+    }
+    
+    #calendarViewModal {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 15px;
+    }
+    
+    #calendarViewModal .modal-dialog {
+        width: 100%;
+        max-width: 100%;
+        margin: 0;
+    }
+    
+    #calendarViewModal .modal-content {
+        border: none;
+        box-shadow: none;
+    }
+    
+    #print-calendar-btn,
+    #calendarViewModal .btn-close,
+    #prev-week-btn,
+    #next-week-btn,
+    #calendarViewModal .modal-footer .btn-secondary {
+        display: none;
+    }
+}
+
+/* Picture Preview */
+#picture-preview img {
+    max-width: 100%;
+    max-height: 200px;
+    border-radius: 0.25rem;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 767.98px) {
+    .sidebar {
+        min-height: auto;
+        height: auto;
+        position: static;
+    }
+}
+
+/* Styles for caregiver initials badge */
+.badge {
+    font-size: 0.7rem;
+    font-weight: normal;
+    margin-left: 5px;
+}
+
+/* Styles for location rates button */
+.location-rates-btn {
+    font-size: 0.75rem;
+    padding: 2px 6px;
+    margin-left: 5px;
+}
+
+/* Styles for popover */
+.popover {
+    max-width: 300px;
+}
+
+.popover-body {
+    padding: 0;
+}
+
+.location-rates-table {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+/* Make location fields more compact on small screens */
+@media (max-width: 768px) {
+    .location-field {
+        margin-bottom: 0.5rem;
+    }
+}
+
+/* Location Rate Item Styles */
+.location-rate-item {
+    align-items: center;
+}
+
+.location-rate-item .btn-danger {
+    padding: 0.25rem 0.5rem;
+}
+
+/* Make location fields more compact on smaller screens */
+@media (max-width: 767.98px) {
+    .location-rate-item .col-md-1 {
+        margin-top: 0.5rem;
+    }
+} 
