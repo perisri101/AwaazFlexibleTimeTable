@@ -1358,6 +1358,44 @@ def git_troubleshoot_api():
                             results['recommendations'].append("Use the 'Force Push' button if you want to overwrite remote changes")
                 except Exception as e:
                     results['errors'].append(f"Error checking for non-fast-forward issues: {str(e)}")
+                
+                # Check for "Updates were rejected" error
+                try:
+                    # Try to push and see if we get a rejection error
+                    push_result = subprocess.run(['git', 'push', 'origin', 'HEAD'], 
+                                                check=False, capture_output=True, text=True, timeout=5)
+                    
+                    if push_result.returncode != 0 and 'Updates were rejected because' in push_result.stderr:
+                        results['actions_taken'].append("Detected 'Updates were rejected' error")
+                        
+                        # Get current branch
+                        try:
+                            current_branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).decode().strip()
+                        except:
+                            current_branch = 'main'
+                        
+                        # Try to pull with rebase
+                        try:
+                            pull_result = subprocess.run(['git', 'pull', '--rebase', 'origin', current_branch], 
+                                                       check=False, capture_output=True, text=True, timeout=10)
+                            
+                            if pull_result.returncode == 0:
+                                results['actions_taken'].append("Successfully integrated remote changes with rebase")
+                            else:
+                                # If rebase fails, try reset to remote
+                                reset_result = subprocess.run(['git', 'reset', '--hard', f'origin/{current_branch}'], 
+                                                            check=False, capture_output=True, text=True, timeout=10)
+                                
+                                if reset_result.returncode == 0:
+                                    results['actions_taken'].append("Reset local branch to match remote")
+                                else:
+                                    results['errors'].append(f"Failed to reset to remote: {reset_result.stderr}")
+                                    results['recommendations'].append("Use the 'Fix Rejected Push' button to manually resolve this issue")
+                        except Exception as e:
+                            results['errors'].append(f"Error fixing rejected push: {str(e)}")
+                            results['recommendations'].append("Use the 'Fix Rejected Push' button to manually resolve this issue")
+                except Exception as e:
+                    results['errors'].append(f"Error checking for rejected push: {str(e)}")
             except Exception as e:
                 results['errors'].append(f"Error fixing branch issues: {str(e)}")
         
@@ -1817,8 +1855,8 @@ def force_push_api():
 def pull_reset_api():
     """Pull from remote and reset local repository to match remote."""
     try:
-        # Fetch from remote
-        fetch_result = subprocess.run(['git', 'fetch', 'origin', 'main'], 
+        # First, fetch from remote to get latest changes
+        fetch_result = subprocess.run(['git', 'fetch', 'origin'], 
                                      check=False, capture_output=True, text=True, timeout=10)
         
         if fetch_result.returncode != 0:
@@ -1827,20 +1865,35 @@ def pull_reset_api():
                 'error': f"Failed to fetch from remote: {fetch_result.stderr}"
             })
         
+        # Get current branch
+        try:
+            current_branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).decode().strip()
+        except:
+            current_branch = 'main'  # Default to main if we can't determine current branch
+        
         # Reset to match remote
-        reset_result = subprocess.run(['git', 'reset', '--hard', 'origin/main'], 
+        reset_result = subprocess.run(['git', 'reset', '--hard', f'origin/{current_branch}'], 
                                      check=False, capture_output=True, text=True, timeout=10)
         
-        if reset_result.returncode == 0:
-            return jsonify({
-                'success': True,
-                'message': "Successfully reset local repository to match remote"
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'error': f"Reset failed: {reset_result.stderr}"
-            })
+        if reset_result.returncode != 0:
+            # If reset fails, try with main branch explicitly
+            reset_result = subprocess.run(['git', 'reset', '--hard', 'origin/main'], 
+                                         check=False, capture_output=True, text=True, timeout=10)
+            
+            if reset_result.returncode != 0:
+                return jsonify({
+                    'success': False,
+                    'error': f"Reset failed: {reset_result.stderr}"
+                })
+        
+        # Pull changes to ensure we're up to date
+        pull_result = subprocess.run(['git', 'pull', 'origin', current_branch], 
+                                    check=False, capture_output=True, text=True, timeout=10)
+        
+        return jsonify({
+            'success': True,
+            'message': "Successfully reset local repository to match remote"
+        })
     except Exception as e:
         return jsonify({
             'success': False,
@@ -2008,6 +2061,96 @@ def fix_auth_url():
                 'success': False,
                 'error': f'Error testing connection: {str(e)}'
             })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/git/fix-rejected-push', methods=['POST'])
+def fix_rejected_push():
+    """Fix the 'Updates were rejected' error by integrating remote changes."""
+    try:
+        # Get current branch
+        try:
+            current_branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).decode().strip()
+        except:
+            current_branch = 'main'  # Default to main if we can't determine current branch
+        
+        # First try to stash any local changes
+        stash_result = subprocess.run(['git', 'stash'], 
+                                     check=False, capture_output=True, text=True, timeout=10)
+        
+        # Fetch from remote
+        fetch_result = subprocess.run(['git', 'fetch', 'origin'], 
+                                     check=False, capture_output=True, text=True, timeout=10)
+        
+        if fetch_result.returncode != 0:
+            return jsonify({
+                'success': False,
+                'error': f"Failed to fetch from remote: {fetch_result.stderr}"
+            })
+        
+        # Try different strategies to integrate remote changes
+        
+        # Strategy 1: Pull with rebase
+        try:
+            pull_result = subprocess.run(['git', 'pull', '--rebase', 'origin', current_branch], 
+                                        check=False, capture_output=True, text=True, timeout=10)
+            
+            if pull_result.returncode == 0:
+                # Apply stashed changes if any
+                subprocess.run(['git', 'stash', 'pop'], check=False, capture_output=True)
+                
+                return jsonify({
+                    'success': True,
+                    'message': "Successfully integrated remote changes with rebase"
+                })
+        except Exception as e:
+            app.logger.warning(f"Pull with rebase failed: {str(e)}")
+        
+        # Strategy 2: Reset to remote and then apply local changes
+        try:
+            # Get a list of changed files before reset
+            changed_files = subprocess.check_output(['git', 'diff', '--name-only', 'HEAD']).decode().strip().split('\n')
+            
+            # Reset to match remote
+            reset_result = subprocess.run(['git', 'reset', '--hard', f'origin/{current_branch}'], 
+                                         check=False, capture_output=True, text=True, timeout=10)
+            
+            if reset_result.returncode == 0:
+                # Apply stashed changes if any
+                subprocess.run(['git', 'stash', 'pop'], check=False, capture_output=True)
+                
+                return jsonify({
+                    'success': True,
+                    'message': "Successfully reset to remote and reapplied local changes"
+                })
+        except Exception as e:
+            app.logger.warning(f"Reset and reapply failed: {str(e)}")
+        
+        # Strategy 3: Create a new branch with local changes and reset main
+        try:
+            # Create a backup branch with current changes
+            backup_branch = f"backup-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+            subprocess.run(['git', 'branch', backup_branch], check=False)
+            
+            # Reset main to match remote
+            subprocess.run(['git', 'checkout', current_branch], check=False)
+            subprocess.run(['git', 'reset', '--hard', f'origin/{current_branch}'], check=False)
+            
+            return jsonify({
+                'success': True,
+                'message': f"Reset to match remote. Your local changes are saved in branch '{backup_branch}'"
+            })
+        except Exception as e:
+            app.logger.warning(f"Backup branch strategy failed: {str(e)}")
+        
+        # If all strategies fail, return error
+        return jsonify({
+            'success': False,
+            'error': "Failed to integrate remote changes. Please manually resolve conflicts."
+        })
     except Exception as e:
         return jsonify({
             'success': False,

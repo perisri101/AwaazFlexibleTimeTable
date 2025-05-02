@@ -440,6 +440,39 @@ $(document).ready(function() {
             });
         }
     });
+
+    // Fix rejected push
+    $(document).on('click', '#fix-rejected-push-btn', function() {
+        if (confirm('This will attempt to fix the "Updates were rejected" error by integrating remote changes. Any uncommitted changes may be stashed. Continue?')) {
+            $.ajax({
+                url: '/api/git/fix-rejected-push',
+                type: 'POST',
+                success: function(response) {
+                    if (response.success) {
+                        showNotification(response.message, 'success');
+                    } else {
+                        showNotification('Error: ' + response.error, 'danger');
+                    }
+                    // Refresh Git test results
+                    setTimeout(function() {
+                        $('#test-git-btn').click();
+                    }, 1000);
+                },
+                error: function(xhr) {
+                    let errorMsg = 'Error fixing rejected push';
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        if (response.error) {
+                            errorMsg += ': ' + response.error;
+                        }
+                    } catch (e) {
+                        errorMsg += ': ' + xhr.statusText;
+                    }
+                    showNotification(errorMsg, 'danger');
+                }
+            });
+        }
+    });
 });
 
 // Initialize application
