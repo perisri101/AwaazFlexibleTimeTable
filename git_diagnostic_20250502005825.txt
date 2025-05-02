@@ -1,0 +1,52 @@
+
+================================================================================
+ Git Diagnostics
+================================================================================
+Date/Time: 2025-05-02T00:58:26.021665
+Working Directory: /Users/anuperi/Desktop/2025/AwaazTech/AwaazFlexibleTimeTable
+
+================================================================================
+ Environment Variables
+================================================================================
+GIT_USER_NAME: Not set
+GIT_USER_EMAIL: Not set
+GIT_AUTO_PUSH: true
+GIT_REMOTE: Not set
+GIT_BRANCH: Not set
+GIT_REPOSITORY_URL: Not set
+GITHUB_TOKEN: Not set
+SSH_PRIVATE_KEY: Not set
+FLASK_ENV: development
+RENDER_EXTERNAL_URL: Not set
+RENDER_SERVICE_ID: Not set
+
+Recommended environment variables that are missing:
+- GIT_USER_NAME (recommended: 'AwaazFlexyTimeTable App')
+- GIT_USER_EMAIL (recommended: 'app@awaazflexytimetable.onrender.com')
+- GITHUB_TOKEN (required for Git push operations)
+- GIT_REPOSITORY_URL (recommended: 'https://github.com/perisri101/AwaazFlexyTimeTable.git')
+
+These variables should be set in your Render environment.
+
+================================================================================
+ GitHub Token Authentication Test
+================================================================================
+❌ GITHUB_TOKEN is not set in environment variables
+You must add the GITHUB_TOKEN to your Render environment.
+See render_environment_setup.md for instructions.
+
+❌ GitHub token authentication failed. This is the most critical issue to fix.
+Please configure your GitHub token before proceeding with other diagnostics.
+Follow the instructions in render_environment_setup.md
+
+================================================================================
+ Diagnostic Summary
+================================================================================
+❌ GitHub Token Auth
+
+⚠️ Some checks failed. Please review the output above for issues.
+
+🔑 GitHub Token Authentication Issue:
+1. Set up a GitHub personal access token
+2. Add the token to your environment variables as GITHUB_TOKEN
+3. Follow the instructions in render_environment_setup.md

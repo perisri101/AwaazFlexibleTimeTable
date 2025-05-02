@@ -54,12 +54,17 @@ def check_environment():
         "SSH_PRIVATE_KEY": "Set" if os.environ.get("SSH_PRIVATE_KEY") else "Not set",
         "FLASK_ENV": os.environ.get("FLASK_ENV", "Not set"),
         "RENDER_EXTERNAL_URL": os.environ.get("RENDER_EXTERNAL_URL", "Not set"),
-        "RENDER_SERVICE_ID": os.environ.get("RENDER_SERVICE_ID", "Not set")
+        "RENDER_SERVICE_ID": os.environ.get("RENDER_SERVICE_ID", "Not set"),
+        "ALLOW_GIT_IN_PRODUCTION": os.environ.get("ALLOW_GIT_IN_PRODUCTION", "Not set")
     }
     
     # Print environment variables
     for var, value in env_vars.items():
-        print(f"{var}: {value}")
+        if var == "GITHUB_TOKEN":
+            masked = value[:4] + "..." + value[-4:] if len(value) > 8 else "***"
+            print(f"{var}: {masked}")
+        else:
+            print(f"{var}: {value}")
     
     # Provide recommendations for missing variables
     missing_vars = []
@@ -488,6 +493,100 @@ def create_summary(results):
             print("4. Run this diagnostic script again")
             print("\nFor detailed instructions, see the render_environment_setup.md file.")
 
+def test_git_connection():
+    # Check if GITHUB_TOKEN is set
+    token = os.environ.get("GITHUB_TOKEN")
+    repo_url = os.environ.get("GIT_REPOSITORY_URL")
+    
+    if not token:
+        print("\n=== GitHub Token Test ===")
+        print("GITHUB_TOKEN is not set. Authentication may fail.")
+        return
+    
+    if not repo_url:
+        print("\n=== Repository URL Test ===")
+        print("GIT_REPOSITORY_URL is not set. Using current remote.")
+    
+    # Test connection with ls-remote
+    print("\n=== Testing Git Connection ===")
+    
+    # Construct the URL with token if available
+    if token and repo_url:
+        # Extract the domain and path
+        if repo_url.startswith("https://"):
+            parts = repo_url.split("//")
+            test_url = f"{parts[0]}//{token}@{parts[1]}"
+        else:
+            test_url = repo_url
+    else:
+        test_url = None
+    
+    if test_url:
+        cmd = ["git", "ls-remote", test_url]
+        # Don't print the actual command as it contains the token
+        print("Running: git ls-remote [REPOSITORY_URL with token]")
+    else:
+        cmd = ["git", "ls-remote", "origin"]
+        print("Running: git ls-remote origin")
+    
+    try:
+        result = subprocess.run(cmd, check=False, capture_output=True, text=True)
+        print(f"Exit code: {result.returncode}")
+        if result.returncode == 0:
+            print("Connection successful!")
+            print(f"Found {len(result.stdout.splitlines())} refs")
+        else:
+            print("Connection failed!")
+            print(result.stderr)
+    except Exception as e:
+        print(f"Error testing connection: {e}")
+
+def fix_git_config():
+    print("\n=== Fixing Git Configuration ===")
+    
+    # Set user name and email if provided in environment
+    user_name = os.environ.get("GIT_USER_NAME")
+    user_email = os.environ.get("GIT_USER_EMAIL")
+    
+    if user_name:
+        run_command(["git", "config", "--global", "user.name", user_name], 
+                   f"Setting git user.name to {user_name}")
+    
+    if user_email:
+        run_command(["git", "config", "--global", "user.email", user_email], 
+                   f"Setting git user.email to {user_email}")
+    
+    # Set up repository URL if provided
+    repo_url = os.environ.get("GIT_REPOSITORY_URL")
+    if repo_url:
+        # Check if origin remote exists
+        result = run_command(["git", "remote"], "Checking remotes")
+        if "origin" in result.stdout:
+            run_command(["git", "remote", "set-url", "origin", repo_url], 
+                       f"Updating origin remote to {repo_url}")
+        else:
+            run_command(["git", "remote", "add", "origin", repo_url], 
+                       f"Adding origin remote with {repo_url}")
+    
+    # Test if we can push with the token
+    token = os.environ.get("GITHUB_TOKEN")
+    if token and repo_url:
+        # Modify the URL to include the token for this test
+        if repo_url.startswith("https://"):
+            parts = repo_url.split("//")
+            token_url = f"{parts[0]}//{token}@{parts[1]}"
+            
+            # Set a credential helper to store the token
+            run_command(["git", "config", "--global", "credential.helper", "store"], 
+                       "Setting credential helper to store")
+            
+            # Create a test file
+            with open(".git-credentials", "w") as f:
+                f.write(f"https://{token}:x-oauth-basic@github.com\n")
+            
+            run_command(["git", "config", "--global", "credential.helper", "store"], 
+                       "Storing credentials")
+
 def main():
     """Run the diagnostic checks."""
     print_section("Git Diagnostics")
@@ -551,6 +650,12 @@ def main():
     
     # Check push access
     results["Git Push Access"] = check_push_access()
+    
+    # Test Git connection
+    test_git_connection()
+    
+    # Fix Git configuration if needed
+    fix_git_config()
     
     # Create summary
     create_summary(results)
