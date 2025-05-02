@@ -340,238 +340,105 @@ $(document).ready(function() {
         $('#env-variables-section').hide();
     });
 
-    // Apply Repository URL
-    $(document).on('click', '#apply-repo-url-btn', function() {
-        const repoUrl = $('#env-git-repo-url-input').val();
-        
-        if (!repoUrl) {
-            showNotification('Please enter a repository URL first', 'warning');
-            return;
-        }
-        
-        if (confirm(`This will set the remote repository URL to:\n${repoUrl}\n\nContinue?`)) {
-            $.ajax({
-                url: '/api/git/set-remote',
-                type: 'POST',
-                contentType: 'application/json',
-                data: JSON.stringify({ url: repoUrl }),
-                success: function(response) {
-                    if (response.success) {
-                        showNotification('Repository URL applied successfully', 'success');
-                        // Refresh Git test results if they're visible
-                        if ($('#git-test-results').is(':visible')) {
-                            setTimeout(function() {
-                                $('#test-git-btn').click();
-                            }, 1000);
-                        }
-                    } else {
-                        showNotification('Error applying repository URL: ' + response.error, 'danger');
-                    }
-                },
-                error: function(xhr) {
-                    let errorMsg = 'Error applying repository URL';
-                    try {
-                        const response = JSON.parse(xhr.responseText);
-                        if (response.error) {
-                            errorMsg += ': ' + response.error;
-                        }
-                    } catch (e) {
-                        errorMsg += ': ' + xhr.statusText;
-                    }
-                    showNotification(errorMsg, 'danger');
-                }
-            });
-        }
-    });
-
-    // Initialize/Reset Git Repository
-    $(document).on('click', '#initialize-repo-btn', function() {
-        if (confirm('WARNING: This will initialize or reset the Git repository. Any uncommitted changes may be lost. Continue?')) {
-            $.ajax({
-                url: '/api/git/initialize',
-                type: 'POST',
-                success: function(response) {
-                    if (response.success) {
-                        showNotification(response.message, 'success');
-                        // Refresh Git test results if they're visible
-                        if ($('#git-test-results').is(':visible')) {
-                            setTimeout(function() {
-                                $('#test-git-btn').click();
-                            }, 1000);
-                        }
-                    } else {
-                        showNotification('Error initializing repository: ' + response.error, 'danger');
-                    }
-                },
-                error: function(xhr) {
-                    let errorMsg = 'Error initializing repository';
-                    try {
-                        const response = JSON.parse(xhr.responseText);
-                        if (response.error) {
-                            errorMsg += ': ' + response.error;
-                        }
-                    } catch (e) {
-                        errorMsg += ': ' + xhr.statusText;
-                    }
-                    showNotification(errorMsg, 'danger');
-                }
-            });
-        }
-    });
-
-    // Update .gitignore file
-    $(document).on('click', '#update-gitignore-btn', function() {
-        if (confirm('This will update the .gitignore file to exclude common Python patterns like .venv and __pycache__. Continue?')) {
-            $.ajax({
-                url: '/api/git/update-gitignore',
-                type: 'POST',
-                success: function(response) {
-                    if (response.success) {
-                        showNotification(response.message, 'success');
-                    } else {
-                        showNotification('Error updating .gitignore: ' + response.error, 'danger');
-                    }
-                },
-                error: function(xhr) {
-                    let errorMsg = 'Error updating .gitignore';
-                    try {
-                        const response = JSON.parse(xhr.responseText);
-                        if (response.error) {
-                            errorMsg += ': ' + response.error;
-                        }
-                    } catch (e) {
-                        errorMsg += ': ' + xhr.statusText;
-                    }
-                    showNotification(errorMsg, 'danger');
-                }
-            });
-        }
-    });
-
-    // Force push to remote
-    $(document).on('click', '#force-push-btn', function() {
-        if (confirm('WARNING: This will force push your local changes to the remote repository. This may overwrite changes on the remote. Continue?')) {
-            $.ajax({
-                url: '/api/git/force-push',
-                type: 'POST',
-                success: function(response) {
-                    if (response.success) {
-                        showNotification(response.message, 'success');
-                    } else {
-                        showNotification('Error: ' + response.error, 'danger');
-                    }
-                    // Refresh Git test results
-                    setTimeout(function() {
-                        $('#test-git-btn').click();
-                    }, 1000);
-                },
-                error: function(xhr) {
-                    let errorMsg = 'Error during force push';
-                    try {
-                        const response = JSON.parse(xhr.responseText);
-                        if (response.error) {
-                            errorMsg += ': ' + response.error;
-                        }
-                    } catch (e) {
-                        errorMsg += ': ' + xhr.statusText;
-                    }
-                    showNotification(errorMsg, 'danger');
-                }
-            });
-        }
-    });
-
-    // Pull and reset local repository
-    $(document).on('click', '#pull-reset-btn', function() {
-        if (confirm('WARNING: This will reset your local repository to match the remote. Any uncommitted changes will be lost. Continue?')) {
-            $.ajax({
-                url: '/api/git/pull-reset',
-                type: 'POST',
-                success: function(response) {
-                    if (response.success) {
-                        showNotification(response.message, 'success');
-                    } else {
-                        showNotification('Error: ' + response.error, 'danger');
-                    }
-                    // Refresh Git test results
-                    setTimeout(function() {
-                        $('#test-git-btn').click();
-                    }, 1000);
-                },
-                error: function(xhr) {
-                    let errorMsg = 'Error during pull and reset';
-                    try {
-                        const response = JSON.parse(xhr.responseText);
-                        if (response.error) {
-                            errorMsg += ': ' + response.error;
-                        }
-                    } catch (e) {
-                        errorMsg += ': ' + xhr.statusText;
-                    }
-                    showNotification(errorMsg, 'danger');
-                }
-            });
-        }
-    });
-
-    // Fix Git credentials
-    $(document).on('click', '#fix-credentials-btn', function() {
-        if (confirm('This will update your Git credentials for GitHub authentication. Continue?')) {
-            $.ajax({
-                url: '/api/git/fix-credentials',
-                type: 'POST',
-                success: function(response) {
-                    if (response.success) {
-                        showNotification(response.message, 'success');
-                    } else {
-                        showNotification('Error: ' + response.error, 'danger');
-                    }
-                    // Refresh Git test results
-                    setTimeout(function() {
-                        $('#test-git-btn').click();
-                    }, 1000);
-                },
-                error: function(xhr) {
-                    let errorMsg = 'Error fixing Git credentials';
-                    try {
-                        const response = JSON.parse(xhr.responseText);
-                        if (response.error) {
-                            errorMsg += ': ' + response.error;
-                        }
-                    } catch (e) {
-                        errorMsg += ': ' + xhr.statusText;
-                    }
-                    showNotification(errorMsg, 'danger');
-                }
-            });
-        }
-    });
-
-    // Update repository URL with credentials
+    // Update repository URL with credentials - improved version
     $(document).on('click', '#update-repo-url-with-auth-btn', function() {
         // Get values from form
         const username = $('#env-git-user-name-input').val();
         const token = $('#env-github-token-input').val();
-        const repoUrl = $('#env-git-repo-url-input').val();
+        let repoUrl = $('#env-git-repo-url-input').val();
         
         if (!username || !token || !repoUrl) {
             showNotification('Please fill in username, token, and repository URL first', 'warning');
             return;
         }
         
-        // Format: https://username:token@github.com/username/repo.git
-        let newUrl = repoUrl;
+        // Make sure URL is in the correct format
+        if (!repoUrl.startsWith('https://')) {
+            showNotification('Repository URL must start with https://', 'warning');
+            return;
+        }
         
         // Remove any existing auth info
-        newUrl = newUrl.replace(/https:\/\/[^@]+@github\.com/, 'https://github.com');
+        repoUrl = repoUrl.replace(/https:\/\/[^@]+@github\.com/, 'https://github.com');
         
         // Add new auth info
-        newUrl = newUrl.replace('https://github.com', `https://${username}:${token}@github.com`);
+        const newUrl = repoUrl.replace('https://github.com', `https://${username}:${token}@github.com`);
         
         // Update the input field
         $('#env-git-repo-url-input').val(newUrl);
         
-        showNotification('Repository URL updated with authentication information. Click "Save Changes" to apply.', 'info');
+        // Apply the URL immediately
+        if (confirm('Do you want to apply this URL to your Git repository now?')) {
+            $.ajax({
+                url: '/api/git/set-remote',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ url: newUrl }),
+                success: function(response) {
+                    if (response.success) {
+                        showNotification('Repository URL with authentication applied successfully', 'success');
+                        
+                        // Save to environment variables
+                        const formData = {
+                            GIT_REPOSITORY_URL: newUrl
+                        };
+                        
+                        $.ajax({
+                            url: '/api/env/variables',
+                            type: 'POST',
+                            contentType: 'application/json',
+                            data: JSON.stringify(formData),
+                            success: function() {
+                                // Refresh Git test results
+                                setTimeout(function() {
+                                    $('#test-git-btn').click();
+                                }, 1000);
+                            }
+                        });
+                    } else {
+                        showNotification('Error applying repository URL: ' + response.error, 'danger');
+                    }
+                },
+                error: function(xhr) {
+                    showNotification('Error applying repository URL', 'danger');
+                }
+            });
+        } else {
+            showNotification('Repository URL updated with authentication. Click "Save Changes" to save to environment variables.', 'info');
+        }
+    });
+
+    // Fix "Username not found" error
+    $(document).on('click', '#fix-auth-url-btn', function() {
+        if (confirm('This will fix the "could not read Username for https://github.com" error by embedding your credentials in the repository URL. Continue?')) {
+            $.ajax({
+                url: '/api/git/fix-auth-url',
+                type: 'POST',
+                success: function(response) {
+                    if (response.success) {
+                        showNotification(response.message, 'success');
+                        // Refresh Git test results
+                        setTimeout(function() {
+                            $('#test-git-btn').click();
+                        }, 1000);
+                    } else {
+                        showNotification('Error: ' + response.error, 'danger');
+                    }
+                },
+                error: function(xhr) {
+                    let errorMsg = 'Error fixing authentication URL';
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        if (response.error) {
+                            errorMsg += ': ' + response.error;
+                        }
+                    } catch (e) {
+                        errorMsg += ': ' + xhr.statusText;
+                    }
+                    showNotification(errorMsg, 'danger');
+                }
+            });
+        }
     });
 });
 

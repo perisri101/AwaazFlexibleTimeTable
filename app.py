@@ -1219,6 +1219,62 @@ def git_troubleshoot_api():
                     results['recommendations'].append("Set GITHUB_TOKEN environment variable")
             except Exception as e:
                 results['errors'].append(f"Error fixing authentication: {str(e)}")
+            
+            # Check for "could not read Username" error
+            try:
+                # Try a git operation that requires authentication
+                auth_test = subprocess.run(['git', 'fetch', 'origin'], 
+                                          check=False, capture_output=True, text=True, timeout=5)
+                
+                if auth_test.returncode != 0 and 'could not read Username for' in auth_test.stderr:
+                    results['actions_taken'].append("Detected 'could not read Username' error")
+                    
+                    # Get GitHub token and username
+                    github_token = os.environ.get('GITHUB_TOKEN')
+                    username = os.environ.get('GIT_USER_NAME')
+                    
+                    if not github_token or not username:
+                        results['errors'].append("Missing GitHub token or username in environment variables")
+                        results['recommendations'].append("Set GITHUB_TOKEN and GIT_USER_NAME in environment variables")
+                        return jsonify(results)
+                    
+                    # Get current remote URL
+                    try:
+                        current_url = subprocess.check_output(['git', 'remote', 'get-url', 'origin']).decode().strip()
+                        
+                        # Create authenticated URL
+                        if '@github.com' in current_url:
+                            # Already has auth info, extract the repo part
+                            repo_part = current_url.split('@github.com')[1]
+                            new_url = f"https://{username}:{github_token}@github.com{repo_part}"
+                        else:
+                            # No auth info, add it
+                            if current_url.startswith('https://github.com'):
+                                repo_part = current_url[len('https://github.com'):]
+                                new_url = f"https://{username}:{github_token}@github.com{repo_part}"
+                            else:
+                                results['errors'].append(f"Unsupported URL format: {current_url}")
+                                results['recommendations'].append("Use the 'Add Auth to URL' button to manually fix the URL")
+                                return jsonify(results)
+                        
+                        # Update the remote URL
+                        subprocess.run(['git', 'remote', 'set-url', 'origin', new_url], check=True)
+                        results['actions_taken'].append("Added authentication to repository URL")
+                        
+                        # Test the connection
+                        test_result = subprocess.run(['git', 'ls-remote', '--heads', 'origin'], 
+                                                   check=False, capture_output=True, text=True, timeout=10)
+                        
+                        if test_result.returncode == 0:
+                            results['actions_taken'].append("Verified connection with authenticated URL")
+                        else:
+                            results['errors'].append(f"Updated URL but connection test failed: {test_result.stderr}")
+                            results['recommendations'].append("Check your GitHub token permissions")
+                    except Exception as e:
+                        results['errors'].append(f"Error fixing authentication URL: {str(e)}")
+                        results['recommendations'].append("Use the 'Fix Username not found Error' button")
+            except Exception as e:
+                results['errors'].append(f"Error checking for authentication issues: {str(e)}")
         
         # Fix branch issues
         if issue_type in ['branch', 'all']:
@@ -1851,6 +1907,106 @@ def fix_git_credentials():
             return jsonify({
                 'success': False,
                 'error': 'Repository URL does not contain github.com'
+            })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/git/fix-auth-url', methods=['POST'])
+def fix_auth_url():
+    """Fix the 'could not read Username for https://github.com' error."""
+    try:
+        # Get GitHub token and username from environment
+        github_token = os.environ.get('GITHUB_TOKEN')
+        username = os.environ.get('GIT_USER_NAME')
+        
+        if not github_token:
+            return jsonify({
+                'success': False,
+                'error': 'GitHub token not found in environment variables'
+            }), 400
+            
+        if not username:
+            return jsonify({
+                'success': False,
+                'error': 'Git username not found in environment variables'
+            }), 400
+        
+        # Get current remote URL
+        try:
+            current_url = subprocess.check_output(['git', 'remote', 'get-url', 'origin']).decode().strip()
+        except:
+            return jsonify({
+                'success': False,
+                'error': 'Could not get current remote URL. Make sure origin remote is configured.'
+            }), 400
+        
+        # Check if URL is already authenticated
+        if '@github.com' in current_url:
+            # Already has auth info, extract the repo part
+            repo_part = current_url.split('@github.com')[1]
+            new_url = f"https://{username}:{github_token}@github.com{repo_part}"
+        else:
+            # No auth info, add it
+            if current_url.startswith('https://github.com'):
+                repo_part = current_url[len('https://github.com'):]
+                new_url = f"https://{username}:{github_token}@github.com{repo_part}"
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': f'Unsupported URL format: {current_url}'
+                }), 400
+        
+        # Update the remote URL
+        try:
+            subprocess.run(['git', 'remote', 'set-url', 'origin', new_url], check=True)
+        except subprocess.CalledProcessError as e:
+            return jsonify({
+                'success': False,
+                'error': f'Failed to update remote URL: {str(e)}'
+            }), 500
+        
+        # Test the connection
+        try:
+            test_result = subprocess.run(['git', 'ls-remote', '--heads', 'origin'], 
+                                       check=False, capture_output=True, text=True, timeout=10)
+            
+            if test_result.returncode == 0:
+                # Update environment variable with the new URL (without token for security)
+                secure_url = current_url  # Keep the original URL in env var
+                os.environ['GIT_REPOSITORY_URL'] = secure_url
+                
+                # Update .env file
+                try:
+                    env_path = os.path.join(os.getcwd(), '.env')
+                    if os.path.exists(env_path):
+                        with open(env_path, 'r') as f:
+                            lines = f.readlines()
+                        
+                        with open(env_path, 'w') as f:
+                            for line in lines:
+                                if line.startswith('GIT_REPOSITORY_URL='):
+                                    f.write(f'GIT_REPOSITORY_URL={secure_url}\n')
+                                else:
+                                    f.write(line)
+                except Exception as e:
+                    app.logger.warning(f"Failed to update .env file: {str(e)}")
+                
+                return jsonify({
+                    'success': True,
+                    'message': 'Authentication added to repository URL and connection verified'
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': f'Updated URL but connection test failed: {test_result.stderr}'
+                })
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'error': f'Error testing connection: {str(e)}'
             })
     except Exception as e:
         return jsonify({
