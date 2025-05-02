@@ -68,7 +68,7 @@ def git_add_commit(commit_message, files=None):
         try:
             user_email = subprocess.check_output(['git', 'config', 'user.email']).decode().strip()
         except subprocess.CalledProcessError:
-            git_user_email = os.environ.get('GIT_USER_EMAIL', 'perisri101@.com')
+            git_user_email = os.environ.get('GIT_USER_EMAIL', 'perisri101@gmail.com')
             subprocess.run(['git', 'config', 'user.email', git_user_email], check=True)
         
         # Commit changes
