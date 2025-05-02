@@ -2,7 +2,7 @@ services:
   - type: web
     name: awaazflexibletimetable
     env: python
-    buildCommand: ./build.sh
+    buildCommand: pip install -r requirements.txt && ./setup_git.sh
     startCommand: gunicorn app:app
     envVars:
       - key: PYTHON_VERSION
@@ -13,13 +13,17 @@ services:
         value: development
       - key: GIT_AUTO_PUSH
         value: true
-      - key: WEB_CONCURRENCY
-        value: 4
+      - key: ALLOW_GIT_IN_PRODUCTION
+        value: true
       - key: GIT_USER_NAME
-        value: "perisri101"
+        value: perisri101
       - key: GIT_USER_EMAIL
-        value: "perisri101@gmail.com 
+        value: perisri101@gmail.com
       - key: GITHUB_TOKEN
-        sync: false # This will be set manually in the Render dashboard
+        sync: false
       - key: GIT_REPOSITORY_URL
-        value: "https://github.com/perisri101/AwaazFlexibleTimeTable.git" 
+        value: https://github.com/perisri101/AwaazFlexibleTimeTable.git
+      - key: GIT_BRANCH
+        value: main
+      - key: WEB_CONCURRENCY
+        value: 4 
