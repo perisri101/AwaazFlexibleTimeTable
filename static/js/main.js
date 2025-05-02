@@ -206,6 +206,139 @@ $(document).ready(function() {
             });
         }
     });
+
+    // Git troubleshooter
+    $(document).on('click', '.fix-git-issue', function() {
+        const issueType = $(this).data('issue');
+        const issueName = $(this).text().trim().split('\n')[0];
+        
+        if (confirm(`This will attempt to fix "${issueName}". Continue?`)) {
+            // Show the results section
+            $('#troubleshooter-results').show();
+            $('#troubleshooter-spinner').show();
+            $('#troubleshooter-status').text('Working on fixes...');
+            
+            // Hide result containers initially
+            $('#actions-taken-container, #errors-container, #recommendations-container').hide();
+            
+            // Make the API call
+            $.ajax({
+                url: '/api/git/troubleshoot',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ issue_type: issueType }),
+                success: function(response) {
+                    // Update status
+                    $('#troubleshooter-spinner').hide();
+                    if (response.success) {
+                        $('#troubleshooter-status').html('<i class="fas fa-check-circle text-success"></i> Successfully fixed issues!');
+                    } else if (response.errors && response.errors.length > 0) {
+                        $('#troubleshooter-status').html('<i class="fas fa-exclamation-circle text-warning"></i> Completed with some errors');
+                    } else {
+                        $('#troubleshooter-status').html('<i class="fas fa-info-circle text-info"></i> No issues needed fixing');
+                    }
+                    
+                    // Show actions taken
+                    if (response.actions_taken && response.actions_taken.length > 0) {
+                        $('#actions-taken-list').empty();
+                        response.actions_taken.forEach(function(action) {
+                            $('#actions-taken-list').append(`
+                                <li class="list-group-item list-group-item-success">
+                                    <i class="fas fa-check"></i> ${action}
+                                </li>
+                            `);
+                        });
+                        $('#actions-taken-container').show();
+                    }
+                    
+                    // Show errors
+                    if (response.errors && response.errors.length > 0) {
+                        $('#errors-list').empty();
+                        response.errors.forEach(function(error) {
+                            $('#errors-list').append(`
+                                <li class="list-group-item list-group-item-danger">
+                                    <i class="fas fa-times"></i> ${error}
+                                </li>
+                            `);
+                        });
+                        $('#errors-container').show();
+                    }
+                    
+                    // Show recommendations
+                    if (response.recommendations && response.recommendations.length > 0) {
+                        $('#recommendations-list').empty();
+                        response.recommendations.forEach(function(recommendation) {
+                            $('#recommendations-list').append(`
+                                <li class="list-group-item list-group-item-info">
+                                    <i class="fas fa-lightbulb"></i> ${recommendation}
+                                </li>
+                            `);
+                        });
+                        $('#recommendations-container').show();
+                    }
+                    
+                    // Refresh the test results after a short delay
+                    setTimeout(function() {
+                        $('#test-git-btn').click();
+                    }, 1000);
+                },
+                error: function(xhr) {
+                    $('#troubleshooter-spinner').hide();
+                    $('#troubleshooter-status').html('<i class="fas fa-times-circle text-danger"></i> Error running troubleshooter');
+                    
+                    let errorMsg = 'Error fixing Git issues';
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        if (response.error) {
+                            errorMsg = response.error;
+                        }
+                    } catch (e) {
+                        errorMsg = xhr.statusText;
+                    }
+                    
+                    $('#errors-list').empty();
+                    $('#errors-list').append(`
+                        <li class="list-group-item list-group-item-danger">
+                            <i class="fas fa-times"></i> ${errorMsg}
+                        </li>
+                    `);
+                    $('#errors-container').show();
+                    
+                    showNotification('Error fixing Git issues: ' + errorMsg, 'danger');
+                }
+            });
+        }
+    });
+
+    // Toggle Git troubleshooter
+    $(document).on('click', '#toggle-troubleshooter-btn', function() {
+        $('#git-troubleshooter').toggle();
+        
+        // Update button text based on visibility
+        if ($('#git-troubleshooter').is(':visible')) {
+            $(this).html('<i class="fas fa-times"></i> Hide Troubleshooter');
+        } else {
+            $(this).html('<i class="fas fa-tools"></i> Advanced Troubleshooting');
+        }
+    });
+
+    // Toggle Environment Variables section
+    $(document).on('click', '#toggle-env-btn', function() {
+        $('#env-variables-section').toggle();
+        
+        // Update button text based on visibility
+        if ($('#env-variables-section').is(':visible')) {
+            $(this).html('<i class="fas fa-times"></i> Hide Environment Variables');
+        } else {
+            $(this).html('<i class="fas fa-cog"></i> Environment Variables');
+        }
+    });
+
+    // Initialize troubleshooter as hidden
+    $(document).ready(function() {
+        $('#git-troubleshooter').hide();
+        $('#env-variables-section').hide();
+    });
 });
 
 // Initialize application
@@ -245,6 +378,7 @@ function loadSectionData(section) {
         case 'backups':
             loadBackups();
             loadGitStatus();
+            loadEnvironmentVariables();
             break;
         case 'reports':
             loadReports();
@@ -1063,4 +1197,84 @@ function addLocationRateField() {
         </div>
     `;
     $('#location-rates-container').append(newField);
-} 
+}
+
+// Load environment variables
+function loadEnvironmentVariables() {
+    $.ajax({
+        url: '/api/env/variables',
+        type: 'GET',
+        success: function(data) {
+            // Update form fields
+            $('#env-git-user-name-input').val(data.GIT_USER_NAME || '');
+            $('#env-git-user-email-input').val(data.GIT_USER_EMAIL || '');
+            $('#env-git-repo-url-input').val(data.GIT_REPOSITORY_URL || '');
+            $('#env-git-branch-input').val(data.GIT_BRANCH || 'main');
+            $('#env-github-token-input').val(data.GITHUB_TOKEN || '');
+            $('#env-git-auto-push-input').prop('checked', data.GIT_AUTO_PUSH === 'true');
+            $('#env-allow-git-in-production-input').prop('checked', data.ALLOW_GIT_IN_PRODUCTION === 'true');
+        },
+        error: function(xhr) {
+            showNotification('Error loading environment variables', 'danger');
+        }
+    });
+}
+
+// Save environment variables
+$(document).on('click', '#save-env-btn', function() {
+    // Collect form data
+    const formData = {
+        GIT_USER_NAME: $('#env-git-user-name-input').val(),
+        GIT_USER_EMAIL: $('#env-git-user-email-input').val(),
+        GIT_REPOSITORY_URL: $('#env-git-repo-url-input').val(),
+        GIT_BRANCH: $('#env-git-branch-input').val(),
+        GITHUB_TOKEN: $('#env-github-token-input').val(),
+        GIT_AUTO_PUSH: $('#env-git-auto-push-input').is(':checked') ? 'true' : 'false',
+        ALLOW_GIT_IN_PRODUCTION: $('#env-allow-git-in-production-input').is(':checked') ? 'true' : 'false'
+    };
+    
+    // Send to server
+    $.ajax({
+        url: '/api/env/variables',
+        type: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(formData),
+        success: function(response) {
+            if (response.success) {
+                showNotification('Environment variables updated successfully', 'success');
+                
+                // If there's a warning, show it
+                if (response.warning) {
+                    showNotification(response.warning, 'warning');
+                }
+                
+                // Refresh Git test results if they're visible
+                if ($('#git-test-results').is(':visible')) {
+                    setTimeout(function() {
+                        $('#test-git-btn').click();
+                    }, 1000);
+                }
+            } else {
+                showNotification('Error updating environment variables: ' + response.error, 'danger');
+            }
+        },
+        error: function(xhr) {
+            let errorMsg = 'Error updating environment variables';
+            try {
+                const response = JSON.parse(xhr.responseText);
+                if (response.error) {
+                    errorMsg += ': ' + response.error;
+                }
+            } catch (e) {
+                errorMsg += ': ' + xhr.statusText;
+            }
+            showNotification(errorMsg, 'danger');
+        }
+    });
+});
+
+// Refresh environment variables
+$(document).on('click', '#refresh-env-btn', function() {
+    loadEnvironmentVariables();
+    showNotification('Environment variables refreshed', 'info');
+}); 

@@ -345,12 +345,154 @@
                             </div>
                             <div class="card-footer">
                                 <div class="d-flex justify-content-between">
-                                    <button id="run-setup-btn" class="btn btn-warning">
-                                        <i class="fas fa-wrench"></i> Run Git Setup
-                                    </button>
+                                    <div>
+                                        <button id="run-setup-btn" class="btn btn-warning">
+                                            <i class="fas fa-wrench"></i> Run Git Setup
+                                        </button>
+                                        <button id="toggle-troubleshooter-btn" class="btn btn-info">
+                                            <i class="fas fa-tools"></i> Advanced Troubleshooting
+                                        </button>
+                                        <button id="toggle-env-btn" class="btn btn-secondary">
+                                            <i class="fas fa-cog"></i> Environment Variables
+                                        </button>
+                                    </div>
                                     <button id="force-save-btn" class="btn btn-danger">
                                         <i class="fas fa-exclamation-triangle"></i> Force Save
                                     </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Git Troubleshooter Section -->
+                        <div id="git-troubleshooter" class="card mb-4">
+                            <div class="card-header">
+                                <h5>Git Connectivity Troubleshooter</h5>
+                            </div>
+                            <div class="card-body">
+                                <p>Select an issue to fix:</p>
+                                
+                                <div class="list-group mb-3">
+                                    <button type="button" class="list-group-item list-group-item-action fix-git-issue" data-issue="repo_url">
+                                        <i class="fas fa-link"></i> Fix Repository URL
+                                        <small class="d-block text-muted">Corrects issues with the remote repository URL</small>
+                                    </button>
+                                    <button type="button" class="list-group-item list-group-item-action fix-git-issue" data-issue="authentication">
+                                        <i class="fas fa-key"></i> Fix Authentication
+                                        <small class="d-block text-muted">Resolves GitHub token authentication problems</small>
+                                    </button>
+                                    <button type="button" class="list-group-item list-group-item-action fix-git-issue" data-issue="branch">
+                                        <i class="fas fa-code-branch"></i> Fix Branch Issues
+                                        <small class="d-block text-muted">Fixes detached HEAD and branch tracking problems</small>
+                                    </button>
+                                    <button type="button" class="list-group-item list-group-item-action fix-git-issue" data-issue="init">
+                                        <i class="fas fa-folder-plus"></i> Fix Repository Initialization
+                                        <small class="d-block text-muted">Ensures the Git repository is properly initialized</small>
+                                    </button>
+                                    <button type="button" class="list-group-item list-group-item-action fix-git-issue" data-issue="all">
+                                        <i class="fas fa-magic"></i> Fix All Issues
+                                        <small class="d-block text-muted">Attempts to fix all common Git connectivity problems</small>
+                                    </button>
+                                </div>
+                                
+                                <div id="troubleshooter-results" style="display: none;">
+                                    <h6>Troubleshooting Results:</h6>
+                                    <div class="alert alert-info">
+                                        <div id="troubleshooter-spinner" class="spinner-border spinner-border-sm" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                        <span id="troubleshooter-status">Working on fixes...</span>
+                                    </div>
+                                    
+                                    <div id="actions-taken-container" style="display: none;">
+                                        <h6>Actions Taken:</h6>
+                                        <ul id="actions-taken-list" class="list-group mb-3">
+                                        </ul>
+                                    </div>
+                                    
+                                    <div id="errors-container" style="display: none;">
+                                        <h6>Errors:</h6>
+                                        <ul id="errors-list" class="list-group mb-3">
+                                        </ul>
+                                    </div>
+                                    
+                                    <div id="recommendations-container" style="display: none;">
+                                        <h6>Recommendations:</h6>
+                                        <ul id="recommendations-list" class="list-group mb-3">
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Environment Variables Management Section -->
+                        <div id="env-variables-section" class="card mb-4">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5>Environment Variables</h5>
+                                <div>
+                                    <button id="refresh-env-btn" class="btn btn-sm btn-outline-secondary">
+                                        <i class="fas fa-sync"></i> Refresh
+                                    </button>
+                                    <button id="save-env-btn" class="btn btn-sm btn-primary">
+                                        <i class="fas fa-save"></i> Save Changes
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <form id="env-variables-form">
+                                    <div class="row mb-3">
+                                        <div class="col-md-6">
+                                            <label for="env-git-user-name" class="form-label">GIT_USER_NAME</label>
+                                            <input type="text" class="form-control" id="env-git-user-name-input" name="GIT_USER_NAME">
+                                            <small class="text-muted">Your Git username</small>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label for="env-git-user-email" class="form-label">GIT_USER_EMAIL</label>
+                                            <input type="email" class="form-control" id="env-git-user-email-input" name="GIT_USER_EMAIL">
+                                            <small class="text-muted">Your Git email address</small>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row mb-3">
+                                        <div class="col-md-12">
+                                            <label for="env-git-repo-url-input" class="form-label">GIT_REPOSITORY_URL</label>
+                                            <input type="text" class="form-control" id="env-git-repo-url-input" name="GIT_REPOSITORY_URL">
+                                            <small class="text-muted">URL of your Git repository (e.g., https://github.com/username/repo.git)</small>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row mb-3">
+                                        <div class="col-md-6">
+                                            <label for="env-git-branch-input" class="form-label">GIT_BRANCH</label>
+                                            <input type="text" class="form-control" id="env-git-branch-input" name="GIT_BRANCH">
+                                            <small class="text-muted">Default branch (usually main or master)</small>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label for="env-github-token-input" class="form-label">GITHUB_TOKEN</label>
+                                            <input type="password" class="form-control" id="env-github-token-input" name="GITHUB_TOKEN">
+                                            <small class="text-muted">Your GitHub personal access token</small>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row mb-3">
+                                        <div class="col-md-6">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="env-git-auto-push-input" name="GIT_AUTO_PUSH">
+                                                <label class="form-check-label" for="env-git-auto-push-input">GIT_AUTO_PUSH</label>
+                                            </div>
+                                            <small class="text-muted">Automatically push changes to remote repository</small>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="env-allow-git-in-production-input" name="ALLOW_GIT_IN_PRODUCTION">
+                                                <label class="form-check-label" for="env-allow-git-in-production-input">ALLOW_GIT_IN_PRODUCTION</label>
+                                            </div>
+                                            <small class="text-muted">Allow Git operations in production environment</small>
+                                        </div>
+                                    </div>
+                                </form>
+                                
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle"></i> Changes to environment variables will be saved to the <code>.env</code> file and will persist across application restarts.
                                 </div>
                             </div>
                         </div>

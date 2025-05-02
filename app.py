@@ -796,20 +796,31 @@ def git_status_api():
             remotes = []
             has_remote = False
         
-        # Get config
-        try:
-            config_output = subprocess.check_output(['git', 'config', '--list']).decode().strip()
-            config = dict(line.split('=', 1) for line in config_output.split('\n') if '=' in line)
-        except:
-            config = {}
+        # Check if .git directory exists
+        is_git_repo = os.path.exists('.git')
+        
+        # Check if we can access the remote
+        can_access_remote = False
+        remote_error = None
+        if has_remote:
+            try:
+                result = subprocess.run(['git', 'ls-remote', '--heads', 'origin'], 
+                                      check=False, capture_output=True, text=True, timeout=5)
+                can_access_remote = result.returncode == 0
+                if not can_access_remote:
+                    remote_error = result.stderr.strip()
+            except Exception as e:
+                remote_error = str(e)
         
         return jsonify({
+            'is_git_repo': is_git_repo,
             'branch': branch,
             'changes': changes,
             'has_changes': has_changes,
             'remotes': remotes,
             'has_remote': has_remote,
-            'config': config,
+            'can_access_remote': can_access_remote,
+            'remote_error': remote_error,
             'environment': {
                 'GIT_AUTO_PUSH': os.environ.get('GIT_AUTO_PUSH', 'Not set'),
                 'ALLOW_GIT_IN_PRODUCTION': os.environ.get('ALLOW_GIT_IN_PRODUCTION', 'Not set'),
@@ -1116,6 +1127,321 @@ def run_git_setup_api():
             'error': result.stderr if result.stderr else None,
             'exit_code': result.returncode
         })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/git/troubleshoot', methods=['POST'])
+def git_troubleshoot_api():
+    """Advanced troubleshooting for Git connectivity issues."""
+    try:
+        # Get the issue type from the request
+        data = request.json
+        issue_type = data.get('issue_type', 'unknown')
+        
+        results = {
+            'success': False,
+            'actions_taken': [],
+            'errors': [],
+            'recommendations': []
+        }
+        
+        # Check repository URL format and fix if needed
+        if issue_type in ['repo_url', 'all']:
+            try:
+                # Get current repository URL
+                current_url = None
+                try:
+                    current_url = subprocess.check_output(['git', 'config', '--get', 'remote.origin.url']).decode().strip()
+                except:
+                    results['actions_taken'].append("No remote URL found")
+                
+                # Get URL from environment
+                env_url = os.environ.get('GIT_REPOSITORY_URL')
+                
+                if env_url:
+                    # Fix URL if it contains embedded token
+                    if '@' in env_url and '//' in env_url and not env_url.startswith('git@'):
+                        # Extract the clean URL without token
+                        parts = env_url.split('@')
+                        domain_part = parts[-1]
+                        protocol = env_url.split('//')[0] + '//'
+                        clean_url = protocol + domain_part
+                        
+                        # Set the clean URL
+                        subprocess.run(['git', 'remote', 'set-url', 'origin', clean_url], check=True)
+                        results['actions_taken'].append(f"Fixed repository URL format (removed embedded token)")
+                    elif not current_url or current_url != env_url:
+                        # Set or update the URL
+                        if current_url:
+                            subprocess.run(['git', 'remote', 'set-url', 'origin', env_url], check=True)
+                            results['actions_taken'].append(f"Updated remote URL to match environment variable")
+                        else:
+                            subprocess.run(['git', 'remote', 'add', 'origin', env_url], check=True)
+                            results['actions_taken'].append(f"Added remote origin with URL from environment")
+                else:
+                    results['recommendations'].append("Set GIT_REPOSITORY_URL environment variable")
+            except Exception as e:
+                results['errors'].append(f"Error fixing repository URL: {str(e)}")
+        
+        # Fix authentication issues
+        if issue_type in ['authentication', 'all']:
+            try:
+                token = os.environ.get('GITHUB_TOKEN')
+                if token:
+                    # Configure credential helper
+                    subprocess.run(['git', 'config', '--global', 'credential.helper', 'store'], check=True)
+                    results['actions_taken'].append("Set credential helper to 'store'")
+                    
+                    # Create credentials file
+                    home_dir = os.path.expanduser("~")
+                    with open(os.path.join(home_dir, '.git-credentials'), 'w') as f:
+                        f.write(f"https://x-access-token:{token}@github.com\n")
+                    os.chmod(os.path.join(home_dir, '.git-credentials'), 0o600)
+                    results['actions_taken'].append("Created .git-credentials file with token")
+                    
+                    # Test authentication
+                    auth_test = subprocess.run(
+                        ['curl', '-s', '-o', '/dev/null', '-w', '%{http_code}', 
+                         '-H', f'Authorization: token {token}', 
+                         'https://api.github.com/user'],
+                        capture_output=True, text=True, check=False
+                    )
+                    
+                    if auth_test.stdout.strip() == '200':
+                        results['actions_taken'].append("GitHub token authentication successful")
+                    else:
+                        results['errors'].append(f"GitHub token authentication failed (HTTP {auth_test.stdout.strip()})")
+                        results['recommendations'].append("Generate a new GitHub token with 'repo' scope")
+                else:
+                    results['recommendations'].append("Set GITHUB_TOKEN environment variable")
+            except Exception as e:
+                results['errors'].append(f"Error fixing authentication: {str(e)}")
+        
+        # Fix branch issues
+        if issue_type in ['branch', 'all']:
+            try:
+                # Check if we're in detached HEAD state
+                head_state = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).decode().strip()
+                
+                if head_state == 'HEAD':
+                    # Try to get the default branch from remote
+                    try:
+                        remote_info = subprocess.check_output(['git', 'remote', 'show', 'origin'], 
+                                                            capture_output=True, text=True, check=False)
+                        
+                        # Extract default branch
+                        default_branch = None
+                        for line in remote_info.stdout.splitlines():
+                            if 'HEAD branch:' in line:
+                                default_branch = line.split('HEAD branch:')[1].strip()
+                                break
+                        
+                        if default_branch:
+                            # Try to checkout the default branch
+                            subprocess.run(['git', 'checkout', default_branch], check=False)
+                            results['actions_taken'].append(f"Checked out default branch '{default_branch}'")
+                        else:
+                            # Fallback to main or master
+                            try:
+                                subprocess.run(['git', 'checkout', 'main'], check=False)
+                                results['actions_taken'].append("Checked out 'main' branch")
+                            except:
+                                try:
+                                    subprocess.run(['git', 'checkout', 'master'], check=False)
+                                    results['actions_taken'].append("Checked out 'master' branch")
+                                except:
+                                    # Create main branch
+                                    subprocess.run(['git', 'checkout', '-b', 'main'], check=False)
+                                    results['actions_taken'].append("Created and checked out new 'main' branch")
+                    except Exception as branch_e:
+                        results['errors'].append(f"Error determining default branch: {str(branch_e)}")
+                        # Create main branch as fallback
+                        subprocess.run(['git', 'checkout', '-b', 'main'], check=False)
+                        results['actions_taken'].append("Created and checked out new 'main' branch (fallback)")
+                else:
+                    results['actions_taken'].append(f"Already on branch '{head_state}'")
+                    
+                # Set upstream branch
+                current_branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).decode().strip()
+                subprocess.run(['git', 'branch', '--set-upstream-to=origin/' + current_branch, current_branch], 
+                              check=False, capture_output=True)
+                results['actions_taken'].append(f"Set upstream to origin/{current_branch}")
+                
+            except Exception as e:
+                results['errors'].append(f"Error fixing branch issues: {str(e)}")
+        
+        # Fix repository initialization issues
+        if issue_type in ['init', 'all']:
+            try:
+                # Check if .git directory exists
+                if not os.path.exists('.git'):
+                    # Initialize git repository
+                    subprocess.run(['git', 'init'], check=True)
+                    results['actions_taken'].append("Initialized new Git repository")
+                    
+                    # Set user identity
+                    git_user_name = os.environ.get('GIT_USER_NAME')
+                    git_user_email = os.environ.get('GIT_USER_EMAIL')
+                    
+                    if git_user_name:
+                        subprocess.run(['git', 'config', '--global', 'user.name', git_user_name], check=True)
+                        results['actions_taken'].append(f"Set Git user.name to '{git_user_name}'")
+                    
+                    if git_user_email:
+                        subprocess.run(['git', 'config', '--global', 'user.email', git_user_email], check=True)
+                        results['actions_taken'].append(f"Set Git user.email to '{git_user_email}'")
+                    
+                    # Add remote if URL is available
+                    repo_url = os.environ.get('GIT_REPOSITORY_URL')
+                    if repo_url:
+                        subprocess.run(['git', 'remote', 'add', 'origin', repo_url], check=True)
+                        results['actions_taken'].append(f"Added remote 'origin' with URL from environment")
+                    
+                    # Create initial commit if needed
+                    status = subprocess.check_output(['git', 'status', '--porcelain']).decode().strip()
+                    if status:
+                        subprocess.run(['git', 'add', '.'], check=True)
+                        subprocess.run(['git', 'commit', '-m', 'Initial commit'], check=True)
+                        results['actions_taken'].append("Created initial commit")
+                else:
+                    results['actions_taken'].append("Git repository already initialized")
+            except Exception as e:
+                results['errors'].append(f"Error initializing repository: {str(e)}")
+        
+        # Run the setup script as a final step
+        try:
+            setup_result = subprocess.run(['./setup_git.sh'], 
+                                         check=False, 
+                                         capture_output=True,
+                                         text=True)
+            if setup_result.returncode == 0:
+                results['actions_taken'].append("Successfully ran setup_git.sh script")
+            else:
+                results['errors'].append(f"setup_git.sh script exited with code {setup_result.returncode}")
+                if setup_result.stderr:
+                    results['errors'].append(f"Setup script error: {setup_result.stderr}")
+        except Exception as e:
+            results['errors'].append(f"Error running setup script: {str(e)}")
+        
+        # Set success flag if we took actions and had no errors
+        results['success'] = len(results['actions_taken']) > 0 and len(results['errors']) == 0
+        
+        return jsonify(results)
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/env/variables', methods=['GET'])
+def get_env_variables():
+    """Get environment variables relevant to the application."""
+    # Define which variables we want to expose
+    env_vars = {
+        'GIT_USER_NAME': os.environ.get('GIT_USER_NAME', ''),
+        'GIT_USER_EMAIL': os.environ.get('GIT_USER_EMAIL', ''),
+        'GIT_AUTO_PUSH': os.environ.get('GIT_AUTO_PUSH', 'false'),
+        'ALLOW_GIT_IN_PRODUCTION': os.environ.get('ALLOW_GIT_IN_PRODUCTION', 'false'),
+        'GIT_REPOSITORY_URL': os.environ.get('GIT_REPOSITORY_URL', ''),
+        'GIT_BRANCH': os.environ.get('GIT_BRANCH', 'main'),
+        'GITHUB_TOKEN': os.environ.get('GITHUB_TOKEN', ''),
+        'FLASK_ENV': os.environ.get('FLASK_ENV', 'production')
+    }
+    
+    # Mask sensitive values
+    if env_vars['GITHUB_TOKEN']:
+        env_vars['GITHUB_TOKEN'] = '••••••••' + env_vars['GITHUB_TOKEN'][-4:] if len(env_vars['GITHUB_TOKEN']) > 4 else '••••••••'
+    
+    return jsonify(env_vars)
+
+@app.route('/api/env/variables', methods=['POST'])
+def update_env_variables():
+    """Update environment variables and save to .env file."""
+    try:
+        data = request.json
+        
+        # Validate input
+        if not isinstance(data, dict):
+            return jsonify({'success': False, 'error': 'Invalid data format'}), 400
+        
+        # List of allowed variables to update
+        allowed_vars = [
+            'GIT_USER_NAME', 
+            'GIT_USER_EMAIL', 
+            'GIT_AUTO_PUSH', 
+            'ALLOW_GIT_IN_PRODUCTION',
+            'GIT_REPOSITORY_URL',
+            'GIT_BRANCH'
+        ]
+        
+        # Special handling for GITHUB_TOKEN
+        if 'GITHUB_TOKEN' in data and data['GITHUB_TOKEN'] and not data['GITHUB_TOKEN'].startswith('••••••••'):
+            os.environ['GITHUB_TOKEN'] = data['GITHUB_TOKEN']
+            allowed_vars.append('GITHUB_TOKEN')
+        
+        # Update environment variables
+        updated_vars = []
+        for key, value in data.items():
+            if key in allowed_vars and value is not None:
+                # Skip masked token
+                if key == 'GITHUB_TOKEN' and value.startswith('••••••••'):
+                    continue
+                    
+                os.environ[key] = str(value)
+                updated_vars.append(key)
+                
+                # Update app config if applicable
+                if key == 'GIT_AUTO_PUSH':
+                    app.config['GIT_AUTO_PUSH'] = value.lower() == 'true'
+                elif key == 'GIT_BRANCH':
+                    app.config['GIT_BRANCH'] = value
+        
+        # Save to .env file
+        try:
+            env_path = os.path.join(os.getcwd(), '.env')
+            
+            # Read existing .env file if it exists
+            env_vars = {}
+            if os.path.exists(env_path):
+                with open(env_path, 'r') as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith('#') and '=' in line:
+                            key, value = line.split('=', 1)
+                            env_vars[key.strip()] = value.strip()
+            
+            # Update with new values
+            for key in updated_vars:
+                env_vars[key] = os.environ[key]
+            
+            # Write back to .env file
+            with open(env_path, 'w') as f:
+                for key, value in env_vars.items():
+                    # Quote values with spaces
+                    if ' ' in value and not (value.startswith('"') and value.endswith('"')):
+                        value = f'"{value}"'
+                    f.write(f"{key}={value}\n")
+            
+            # Commit the changes to Git if auto-push is enabled
+            if os.environ.get('GIT_AUTO_PUSH', 'false').lower() == 'true':
+                git_add_commit("Update environment variables", ['.env'])
+            
+            return jsonify({
+                'success': True, 
+                'updated': updated_vars,
+                'message': f"Updated {len(updated_vars)} environment variables"
+            })
+        except Exception as e:
+            app.logger.error(f"Error saving .env file: {str(e)}")
+            return jsonify({
+                'success': True, 
+                'updated': updated_vars,
+                'warning': f"Variables updated in memory but failed to save to .env file: {str(e)}"
+            })
+            
     except Exception as e:
         return jsonify({
             'success': False,
