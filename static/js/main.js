@@ -418,6 +418,35 @@ $(document).ready(function() {
             });
         }
     });
+
+    // Update .gitignore file
+    $(document).on('click', '#update-gitignore-btn', function() {
+        if (confirm('This will update the .gitignore file to exclude common Python patterns like .venv and __pycache__. Continue?')) {
+            $.ajax({
+                url: '/api/git/update-gitignore',
+                type: 'POST',
+                success: function(response) {
+                    if (response.success) {
+                        showNotification(response.message, 'success');
+                    } else {
+                        showNotification('Error updating .gitignore: ' + response.error, 'danger');
+                    }
+                },
+                error: function(xhr) {
+                    let errorMsg = 'Error updating .gitignore';
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        if (response.error) {
+                            errorMsg += ': ' + response.error;
+                        }
+                    } catch (e) {
+                        errorMsg += ': ' + xhr.statusText;
+                    }
+                    showNotification(errorMsg, 'danger');
+                }
+            });
+        }
+    });
 });
 
 // Initialize application

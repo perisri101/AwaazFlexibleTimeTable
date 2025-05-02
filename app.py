@@ -1575,6 +1575,109 @@ def initialize_git_repository():
             'error': str(e)
         }), 500
 
+@app.route('/api/git/update-gitignore', methods=['POST'])
+def update_gitignore():
+    """Update .gitignore file with common Python patterns."""
+    try:
+        gitignore_path = os.path.join(os.getcwd(), '.gitignore')
+        
+        # Common Python patterns to ignore
+        python_patterns = [
+            "# Python virtual environment",
+            ".venv/",
+            "venv/",
+            "env/",
+            "ENV/",
+            "",
+            "# Python cache files",
+            "__pycache__/",
+            "*.py[cod]",
+            "*$py.class",
+            "*.so",
+            ".Python",
+            "build/",
+            "develop-eggs/",
+            "dist/",
+            "downloads/",
+            "eggs/",
+            ".eggs/",
+            "lib/",
+            "lib64/",
+            "parts/",
+            "sdist/",
+            "var/",
+            "wheels/",
+            "*.egg-info/",
+            ".installed.cfg",
+            "*.egg",
+            "",
+            "# Flask stuff",
+            "instance/",
+            ".webassets-cache",
+            "",
+            "# IDE files",
+            ".idea/",
+            ".vscode/",
+            "*.swp",
+            "*.swo",
+            ".DS_Store",
+            "",
+            "# Local environment files",
+            ".env.local",
+            ".env.development.local",
+            ".env.test.local",
+            ".env.production.local",
+            "",
+            "# Log files",
+            "*.log",
+            "logs/"
+        ]
+        
+        # Read existing .gitignore if it exists
+        existing_patterns = []
+        if os.path.exists(gitignore_path):
+            with open(gitignore_path, 'r') as f:
+                existing_patterns = [line.strip() for line in f.readlines()]
+        
+        # Merge patterns, avoiding duplicates
+        all_patterns = []
+        for pattern in python_patterns:
+            if pattern not in existing_patterns:
+                all_patterns.append(pattern)
+        
+        # Add existing patterns that aren't in our standard list
+        for pattern in existing_patterns:
+            if pattern not in python_patterns:
+                all_patterns.append(pattern)
+        
+        # Write updated .gitignore
+        with open(gitignore_path, 'w') as f:
+            f.write('\n'.join(all_patterns))
+        
+        # Add to Git and commit
+        success, message = git_add_commit("Update .gitignore file", ['.gitignore'])
+        
+        # Remove cached files that should now be ignored
+        try:
+            subprocess.run(['git', 'rm', '-r', '--cached', '.'], check=True)
+            subprocess.run(['git', 'add', '.'], check=True)
+            subprocess.run(['git', 'commit', '-m', "Apply .gitignore rules"], check=True)
+        except Exception as e:
+            return jsonify({
+                'success': True,
+                'message': f"Updated .gitignore but failed to apply rules: {str(e)}"
+            })
+        
+        return jsonify({
+            'success': True,
+            'message': "Updated .gitignore and applied rules"
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 if __name__ == '__main__':
     # Use environment variables for host and port if available
     port = int(os.environ.get('PORT', 8000))
