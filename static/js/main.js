@@ -447,6 +447,72 @@ $(document).ready(function() {
             });
         }
     });
+
+    // Force push to remote
+    $(document).on('click', '#force-push-btn', function() {
+        if (confirm('WARNING: This will force push your local changes to the remote repository. This may overwrite changes on the remote. Continue?')) {
+            $.ajax({
+                url: '/api/git/force-push',
+                type: 'POST',
+                success: function(response) {
+                    if (response.success) {
+                        showNotification(response.message, 'success');
+                    } else {
+                        showNotification('Error: ' + response.error, 'danger');
+                    }
+                    // Refresh Git test results
+                    setTimeout(function() {
+                        $('#test-git-btn').click();
+                    }, 1000);
+                },
+                error: function(xhr) {
+                    let errorMsg = 'Error during force push';
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        if (response.error) {
+                            errorMsg += ': ' + response.error;
+                        }
+                    } catch (e) {
+                        errorMsg += ': ' + xhr.statusText;
+                    }
+                    showNotification(errorMsg, 'danger');
+                }
+            });
+        }
+    });
+
+    // Pull and reset local repository
+    $(document).on('click', '#pull-reset-btn', function() {
+        if (confirm('WARNING: This will reset your local repository to match the remote. Any uncommitted changes will be lost. Continue?')) {
+            $.ajax({
+                url: '/api/git/pull-reset',
+                type: 'POST',
+                success: function(response) {
+                    if (response.success) {
+                        showNotification(response.message, 'success');
+                    } else {
+                        showNotification('Error: ' + response.error, 'danger');
+                    }
+                    // Refresh Git test results
+                    setTimeout(function() {
+                        $('#test-git-btn').click();
+                    }, 1000);
+                },
+                error: function(xhr) {
+                    let errorMsg = 'Error during pull and reset';
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        if (response.error) {
+                            errorMsg += ': ' + response.error;
+                        }
+                    } catch (e) {
+                        errorMsg += ': ' + xhr.statusText;
+                    }
+                    showNotification(errorMsg, 'danger');
+                }
+            });
+        }
+    });
 });
 
 // Initialize application

@@ -1270,6 +1270,38 @@ def git_troubleshoot_api():
                               check=False, capture_output=True)
                 results['actions_taken'].append(f"Set upstream to origin/{current_branch}")
                 
+                # Check for non-fast-forward issues
+                try:
+                    # Try to push and see if we get a non-fast-forward error
+                    push_result = subprocess.run(['git', 'push', 'origin', 'HEAD'], 
+                                                check=False, capture_output=True, text=True, timeout=5)
+                    
+                    if push_result.returncode != 0 and 'non-fast-forward' in push_result.stderr:
+                        # We have a non-fast-forward error, try to fix
+                        results['actions_taken'].append("Detected non-fast-forward error")
+                        
+                        # Try to pull with rebase first
+                        try:
+                            pull_result = subprocess.run(['git', 'pull', '--rebase', 'origin', 'main'], 
+                                                       check=False, capture_output=True, text=True, timeout=10)
+                            
+                            if pull_result.returncode == 0:
+                                results['actions_taken'].append("Successfully pulled with rebase")
+                            else:
+                                # If rebase fails, try reset to remote
+                                reset_result = subprocess.run(['git', 'reset', '--hard', 'origin/main'], 
+                                                            check=False, capture_output=True, text=True, timeout=5)
+                                
+                                if reset_result.returncode == 0:
+                                    results['actions_taken'].append("Reset local branch to match remote")
+                                else:
+                                    results['errors'].append(f"Failed to reset to remote: {reset_result.stderr}")
+                                    results['recommendations'].append("Use the 'Pull & Reset' button to manually reset your local repository")
+                        except Exception as e:
+                            results['errors'].append(f"Error fixing non-fast-forward issue: {str(e)}")
+                            results['recommendations'].append("Use the 'Force Push' button if you want to overwrite remote changes")
+                except Exception as e:
+                    results['errors'].append(f"Error checking for non-fast-forward issues: {str(e)}")
             except Exception as e:
                 results['errors'].append(f"Error fixing branch issues: {str(e)}")
         
@@ -1672,6 +1704,87 @@ def update_gitignore():
             'success': True,
             'message': "Updated .gitignore and applied rules"
         })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/git/force-push', methods=['POST'])
+def force_push_api():
+    """Force push to remote repository, resolving non-fast-forward errors."""
+    try:
+        # First try to pull with rebase to integrate remote changes
+        try:
+            subprocess.run(['git', 'pull', '--rebase', 'origin', 'main'], check=False, capture_output=True, timeout=10)
+        except Exception as e:
+            app.logger.warning(f"Pull with rebase failed: {str(e)}")
+        
+        # Try force push with lease (safer than plain force push)
+        try:
+            result = subprocess.run(['git', 'push', '--force-with-lease', 'origin', 'main'], 
+                                   check=False, capture_output=True, text=True, timeout=10)
+            
+            if result.returncode == 0:
+                return jsonify({
+                    'success': True,
+                    'message': "Successfully force pushed to remote repository"
+                })
+            else:
+                # If force-with-lease fails, try plain force push
+                app.logger.warning(f"Force push with lease failed: {result.stderr}")
+                result = subprocess.run(['git', 'push', '--force', 'origin', 'main'], 
+                                       check=False, capture_output=True, text=True, timeout=10)
+                
+                if result.returncode == 0:
+                    return jsonify({
+                        'success': True,
+                        'message': "Successfully force pushed to remote repository (using --force)"
+                    })
+                else:
+                    return jsonify({
+                        'success': False,
+                        'error': f"Force push failed: {result.stderr}"
+                    })
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'error': f"Error during force push: {str(e)}"
+            })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/git/pull-reset', methods=['POST'])
+def pull_reset_api():
+    """Pull from remote and reset local repository to match remote."""
+    try:
+        # Fetch from remote
+        fetch_result = subprocess.run(['git', 'fetch', 'origin', 'main'], 
+                                     check=False, capture_output=True, text=True, timeout=10)
+        
+        if fetch_result.returncode != 0:
+            return jsonify({
+                'success': False,
+                'error': f"Failed to fetch from remote: {fetch_result.stderr}"
+            })
+        
+        # Reset to match remote
+        reset_result = subprocess.run(['git', 'reset', '--hard', 'origin/main'], 
+                                     check=False, capture_output=True, text=True, timeout=10)
+        
+        if reset_result.returncode == 0:
+            return jsonify({
+                'success': True,
+                'message': "Successfully reset local repository to match remote"
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': f"Reset failed: {reset_result.stderr}"
+            })
     except Exception as e:
         return jsonify({
             'success': False,
