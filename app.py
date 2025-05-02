@@ -40,10 +40,19 @@ if git_user_name and git_user_email:
         print(f"Failed to configure git credentials: {e}")
 
 # Git utility functions
-def git_add_commit(commit_message, files=None):
-    """Add and commit changes to Git, and optionally push to remote."""
+def git_add_commit(commit_message, files=None, force=False):
+    """Add and commit changes to Git, and optionally push to remote.
+    
+    Args:
+        commit_message: Message for the commit
+        files: List of specific files to commit (None for all changes)
+        force: If True, attempt to commit even if there are errors
+        
+    Returns:
+        Tuple of (success, message)
+    """
     # Check if in development mode or explicitly allowed in production
-    if app.config['ENVIRONMENT'].lower() != 'development' and not os.environ.get('ALLOW_GIT_IN_PRODUCTION', 'false').lower() == 'true':
+    if not force and app.config['ENVIRONMENT'].lower() != 'development' and not os.environ.get('ALLOW_GIT_IN_PRODUCTION', 'false').lower() == 'true':
         app.logger.info("Git operations skipped in production. Set ALLOW_GIT_IN_PRODUCTION=true to enable.")
         return False, "Git operations disabled in production"
     
@@ -51,6 +60,29 @@ def git_add_commit(commit_message, files=None):
         # Get auto push setting from environment each time
         auto_push = os.environ.get('GIT_AUTO_PUSH', 'false').lower() == 'true'
         app.logger.debug(f"Git auto-push is {'enabled' if auto_push else 'disabled'}")
+
+        # Check if we're in a detached HEAD state and fix if needed
+        try:
+            head_state = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).decode().strip()
+            if head_state == 'HEAD':
+                app.logger.warning("Detected detached HEAD state, attempting to fix...")
+                # Try to checkout main branch
+                try:
+                    subprocess.run(['git', 'checkout', 'main'], check=True, capture_output=True)
+                    app.logger.info("Successfully checked out main branch")
+                except subprocess.CalledProcessError:
+                    # If main doesn't exist, try master
+                    try:
+                        subprocess.run(['git', 'checkout', 'master'], check=True, capture_output=True)
+                        app.logger.info("Successfully checked out master branch")
+                    except subprocess.CalledProcessError:
+                        # Create main branch if needed
+                        subprocess.run(['git', 'checkout', '-b', 'main'], check=True, capture_output=True)
+                        app.logger.info("Created and checked out new main branch")
+        except Exception as e:
+            app.logger.error(f"Error checking/fixing HEAD state: {str(e)}")
+            if not force:
+                return False, f"Error checking Git HEAD state: {str(e)}"
 
         # If no files specified, add all changes
         if files is None:
@@ -71,35 +103,85 @@ def git_add_commit(commit_message, files=None):
             git_user_email = os.environ.get('GIT_USER_EMAIL', 'perisri101@gmail.com')
             subprocess.run(['git', 'config', 'user.email', git_user_email], check=True)
         
+        # Check if there are changes to commit
+        status_output = subprocess.check_output(['git', 'status', '--porcelain']).decode().strip()
+        if not status_output and not force:
+            app.logger.info("No changes to commit")
+            return True, "No changes to commit"
+        
         # Commit changes
-        subprocess.run(['git', 'commit', '-m', commit_message], check=True)
-        app.logger.info(f"Changes committed: {commit_message}")
+        try:
+            subprocess.run(['git', 'commit', '-m', commit_message], check=True)
+            app.logger.info(f"Changes committed: {commit_message}")
+        except subprocess.CalledProcessError as e:
+            error_msg = e.stderr.decode() if e.stderr else str(e)
+            app.logger.warning(f"Commit failed: {error_msg}")
+            
+            if "nothing to commit" in error_msg:
+                return True, "No changes to commit"
+            
+            if not force:
+                return False, f"Commit failed: {error_msg}"
+            else:
+                app.logger.warning("Continuing with push despite commit failure (force mode)")
         
         # Push to remote if enabled
-        if auto_push:
+        if auto_push or force:
             try:
-                subprocess.run(['git', 'push'], check=True)
-                app.logger.info("Changes pushed to remote repository")
-            except subprocess.CalledProcessError as e:
-                error_msg = e.stderr.decode() if e.stderr else str(e)
+                # Set up credentials if token is available
+                github_token = os.environ.get('GITHUB_TOKEN')
+                repo_url = os.environ.get('GIT_REPOSITORY_URL')
                 
-                diagnostic_msg = """
-Git push failed. This is likely due to authentication issues.
-
-Please run the diagnostic script to identify and fix the issue:
-    ./git_diagnosis.sh  or  python3 diagnose_git.py
-
-Common solutions:
-1. Set GITHUB_TOKEN environment variable
-2. Configure Git identity with GIT_USER_NAME and GIT_USER_EMAIL
-3. Set correct GIT_REPOSITORY_URL
-
-For detailed setup instructions, see render_environment_setup.md
-"""
-                app.logger.error(f"Git push failed: {error_msg}\n{diagnostic_msg}")
-                return False, f"Commit successful, but push failed: {error_msg}"
+                if github_token and repo_url and force:
+                    app.logger.info("Setting up Git credentials for force push")
+                    # Configure credential helper
+                    subprocess.run(['git', 'config', '--global', 'credential.helper', 'store'], check=False)
+                    
+                    # Extract the domain from repo URL
+                    if repo_url.startswith('https://'):
+                        domain = repo_url.split('//')[1].split('/')[0]
+                        # Create credentials file in memory
+                        cred_process = subprocess.Popen(
+                            ['git', 'credential', 'approve'],
+                            stdin=subprocess.PIPE,
+                            universal_newlines=True
+                        )
+                        cred_process.communicate(f"protocol=https\nhost={domain}\nusername=x-access-token\npassword={github_token}\n\n")
                 
-        return True, "Changes committed" + (" and pushed" if auto_push else "")
+                # Get current branch
+                branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).decode().strip()
+                
+                # Push to the current branch
+                push_cmd = ['git', 'push', '--set-upstream', 'origin', branch]
+                result = subprocess.run(push_cmd, check=False, capture_output=True)
+                
+                if result.returncode == 0:
+                    app.logger.info("Changes pushed to remote repository")
+                    return True, "Changes committed and pushed"
+                else:
+                    error_msg = result.stderr.decode() if result.stderr else "Unknown push error"
+                    app.logger.error(f"Git push failed: {error_msg}")
+                    
+                    # Try to provide helpful error messages
+                    if "Permission denied" in error_msg or "403" in error_msg:
+                        error_details = "Authentication failed. Check your GitHub token."
+                    elif "not found" in error_msg or "404" in error_msg:
+                        error_details = "Repository not found. Check your repository URL."
+                    elif "rejected" in error_msg:
+                        error_details = "Push rejected. Try pulling changes first."
+                    else:
+                        error_details = error_msg
+                    
+                    if not force:
+                        return False, f"Commit successful, but push failed: {error_details}"
+                    else:
+                        app.logger.warning(f"Push failed even in force mode: {error_details}")
+                        return False, f"Force commit succeeded, but push still failed: {error_details}"
+            except Exception as e:
+                app.logger.error(f"Unexpected error during push: {str(e)}")
+                return False, f"Commit successful, but push failed with error: {str(e)}"
+                
+        return True, "Changes committed" + (" and push attempted" if auto_push or force else "")
     except subprocess.CalledProcessError as e:
         error_msg = e.stderr.decode() if e.stderr else str(e)
         
@@ -116,6 +198,9 @@ For detailed setup instructions, see render_environment_setup.md
             app.logger.error(f"Git authentication error: {error_msg}\n{diagnostic_msg}")
         else:
             app.logger.error(f"Git operation failed: {error_msg}")
+            
+        if force:
+            app.logger.warning(f"Git operation failed even in force mode: {error_msg}")
             
         return False, f"Git operation failed: {error_msg}"
     except Exception as e:
@@ -684,46 +769,61 @@ def restore_backup(backup_id):
 
 # Modified Git status route for production
 @app.route('/api/git/status', methods=['GET'])
-def git_status():
-    """Get the current git status"""
-    # Return dummy data in production
-    if app.config['ENVIRONMENT'] == 'production':
-        return jsonify({
-            "branch": "production",
-            "changes": [],
-            "has_changes": False,
-            "is_production": True
-        })
-    
+def git_status_api():
+    """Get the current Git status."""
     try:
-        result = subprocess.run(
-            ["git", "status", "--porcelain"],
-            check=True,
-            capture_output=True,
-            text=True
-        )
-        
-        changes = result.stdout.strip().split('\n') if result.stdout.strip() else []
-        
         # Get current branch
-        branch_result = subprocess.run(
-            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-            check=True,
-            capture_output=True,
-            text=True
-        )
-        branch = branch_result.stdout.strip()
+        try:
+            branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).decode().strip()
+        except:
+            branch = "Unknown"
+        
+        # Get status
+        try:
+            status_output = subprocess.check_output(['git', 'status', '--porcelain']).decode().strip()
+            changes = [line for line in status_output.split('\n') if line.strip()]
+            has_changes = len(changes) > 0
+        except:
+            changes = []
+            has_changes = False
+        
+        # Get remote status
+        try:
+            remote_output = subprocess.check_output(['git', 'remote', '-v']).decode().strip()
+            remotes = [line for line in remote_output.split('\n') if line.strip()]
+            has_remote = len(remotes) > 0
+        except:
+            remotes = []
+            has_remote = False
+        
+        # Get config
+        try:
+            config_output = subprocess.check_output(['git', 'config', '--list']).decode().strip()
+            config = dict(line.split('=', 1) for line in config_output.split('\n') if '=' in line)
+        except:
+            config = {}
         
         return jsonify({
-            "branch": branch,
-            "changes": changes,
-            "has_changes": len(changes) > 0,
-            "is_production": False
+            'branch': branch,
+            'changes': changes,
+            'has_changes': has_changes,
+            'remotes': remotes,
+            'has_remote': has_remote,
+            'config': config,
+            'environment': {
+                'GIT_AUTO_PUSH': os.environ.get('GIT_AUTO_PUSH', 'Not set'),
+                'ALLOW_GIT_IN_PRODUCTION': os.environ.get('ALLOW_GIT_IN_PRODUCTION', 'Not set'),
+                'GIT_USER_NAME': os.environ.get('GIT_USER_NAME', 'Not set'),
+                'GIT_USER_EMAIL': os.environ.get('GIT_USER_EMAIL', 'Not set'),
+                'GITHUB_TOKEN': 'Set' if os.environ.get('GITHUB_TOKEN') else 'Not set',
+                'GIT_REPOSITORY_URL': os.environ.get('GIT_REPOSITORY_URL', 'Not set')
+            }
         })
-    except subprocess.CalledProcessError as e:
-        return jsonify({"error": f"Git operation failed: {str(e)}", "details": e.stderr}), 500
     except Exception as e:
-        return jsonify({"error": f"Error: {str(e)}"}), 500
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 # Modified Git push route for production
 @app.route('/api/git/push', methods=['POST'])
@@ -868,6 +968,158 @@ def git_diagnose():
             'success': False,
             'error': str(e),
             'message': 'Failed to run diagnostics. Try running ./git_diagnosis.sh from the command line.'
+        }), 500
+
+# Add this with the other API routes
+
+@app.route('/api/git/test-connection', methods=['POST'])
+def test_git_connection_api():
+    """Test Git connectivity and configuration."""
+    try:
+        # Get the current Git configuration
+        git_config = {}
+        try:
+            git_config['user.name'] = subprocess.check_output(['git', 'config', 'user.name']).decode().strip()
+        except:
+            git_config['user.name'] = 'Not set'
+            
+        try:
+            git_config['user.email'] = subprocess.check_output(['git', 'config', 'user.email']).decode().strip()
+        except:
+            git_config['user.email'] = 'Not set'
+            
+        try:
+            git_config['remote.origin.url'] = subprocess.check_output(['git', 'config', '--get', 'remote.origin.url']).decode().strip()
+        except:
+            git_config['remote.origin.url'] = 'Not set'
+        
+        # Test repository access
+        repo_access = False
+        repo_error = None
+        try:
+            result = subprocess.run(['git', 'ls-remote', '--heads', 'origin'], 
+                                   check=False, capture_output=True, text=True)
+            repo_access = result.returncode == 0
+            if not repo_access:
+                repo_error = result.stderr.strip()
+        except Exception as e:
+            repo_error = str(e)
+        
+        # Test push access by creating a test file
+        push_access = False
+        push_error = None
+        test_file = f'git_test_{datetime.now().strftime("%Y%m%d%H%M%S")}.txt'
+        
+        try:
+            # Create test file
+            with open(test_file, 'w') as f:
+                f.write(f"Git connectivity test\n")
+                f.write(f"Date: {datetime.now().isoformat()}\n")
+                f.write(f"Server: {request.host}\n")
+            
+            # Add and commit the file
+            subprocess.run(['git', 'add', test_file], check=True)
+            subprocess.run(['git', 'commit', '-m', f'Git connectivity test at {datetime.now().isoformat()}'], check=True)
+            
+            # Try to push
+            result = subprocess.run(['git', 'push', 'origin', 'HEAD'], 
+                                   check=False, capture_output=True, text=True)
+            push_access = result.returncode == 0
+            if not push_access:
+                push_error = result.stderr.strip()
+        except Exception as e:
+            push_error = str(e)
+        
+        # Get current branch
+        current_branch = 'Unknown'
+        try:
+            current_branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).decode().strip()
+        except:
+            pass
+        
+        # Return the results
+        return jsonify({
+            'success': True,
+            'git_config': git_config,
+            'repository_access': {
+                'success': repo_access,
+                'error': repo_error
+            },
+            'push_access': {
+                'success': push_access,
+                'error': push_error,
+                'test_file': test_file
+            },
+            'current_branch': current_branch,
+            'environment': {
+                'GIT_AUTO_PUSH': os.environ.get('GIT_AUTO_PUSH', 'Not set'),
+                'ALLOW_GIT_IN_PRODUCTION': os.environ.get('ALLOW_GIT_IN_PRODUCTION', 'Not set'),
+                'GIT_USER_NAME': os.environ.get('GIT_USER_NAME', 'Not set'),
+                'GIT_USER_EMAIL': os.environ.get('GIT_USER_EMAIL', 'Not set'),
+                'GITHUB_TOKEN': 'Set' if os.environ.get('GITHUB_TOKEN') else 'Not set',
+                'GIT_REPOSITORY_URL': os.environ.get('GIT_REPOSITORY_URL', 'Not set')
+            }
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/git/force-save', methods=['POST'])
+def force_save_api():
+    """Force save changes to Git, attempting to fix common issues."""
+    try:
+        data = request.json
+        message = data.get('message', 'Force save via API')
+        
+        # Run the setup script first to fix common issues
+        try:
+            setup_result = subprocess.run(['./setup_git.sh'], 
+                                         check=False, 
+                                         capture_output=True,
+                                         text=True)
+            setup_output = setup_result.stdout
+            setup_error = setup_result.stderr
+        except Exception as e:
+            setup_output = ""
+            setup_error = str(e)
+        
+        # Force commit and push
+        success, git_message = git_add_commit(message, force=True)
+        
+        return jsonify({
+            'success': success,
+            'message': git_message,
+            'setup_output': setup_output,
+            'setup_error': setup_error
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/git/run-setup', methods=['POST'])
+def run_git_setup_api():
+    """Run the Git setup script to fix common issues."""
+    try:
+        # Run the setup script
+        result = subprocess.run(['./setup_git.sh'], 
+                               check=False, 
+                               capture_output=True,
+                               text=True)
+        
+        return jsonify({
+            'success': result.returncode == 0,
+            'output': result.stdout,
+            'error': result.stderr if result.stderr else None,
+            'exit_code': result.returncode
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
         }), 500
 
 if __name__ == '__main__':

@@ -251,14 +251,107 @@
                     <!-- Backups and Git Section -->
                     <div id="backups" class="content-section">
                         <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-                            <h1 class="h2">Backups & Git Management</h1>
+                            <h1 class="h2">Backups & Git</h1>
                             <div>
-                                <button id="backup-btn" class="btn btn-warning me-2">
-                                    <i class="fa-solid fa-download"></i> Create Backup
+                                <button id="backup-data-btn" class="btn btn-primary">
+                                    <i class="fa-solid fa-download"></i> Backup Data
                                 </button>
-                                <button id="push-changes-btn" class="btn btn-primary">
-                                    <i class="fa-solid fa-upload"></i> Push Changes
+                                <button id="test-git-btn" class="btn btn-info">
+                                    <i class="fa-brands fa-github"></i> Test Git Connectivity
                                 </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Git Test Results Section -->
+                        <div id="git-test-results" class="card mb-4" style="display: none;">
+                            <div class="card-header">
+                                <h5>Git Connectivity Test Results</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <h6>Git Configuration</h6>
+                                    <table class="table table-sm">
+                                        <tbody>
+                                            <tr>
+                                                <th scope="row">User Name</th>
+                                                <td id="git-user-name">Loading...</td>
+                                            </tr>
+                                            <tr>
+                                                <th scope="row">User Email</th>
+                                                <td id="git-user-email">Loading...</td>
+                                            </tr>
+                                            <tr>
+                                                <th scope="row">Repository URL</th>
+                                                <td id="git-repo-url">Loading...</td>
+                                            </tr>
+                                            <tr>
+                                                <th scope="row">Current Branch</th>
+                                                <td id="git-branch">Loading...</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="card mb-3">
+                                            <div class="card-header">Repository Access</div>
+                                            <div class="card-body">
+                                                <div id="repo-access-status">Testing...</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="card mb-3">
+                                            <div class="card-header">Push Access</div>
+                                            <div class="card-body">
+                                                <div id="push-access-status">Testing...</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <h6>Environment Variables</h6>
+                                    <table class="table table-sm">
+                                        <tbody>
+                                            <tr>
+                                                <th scope="row">GIT_AUTO_PUSH</th>
+                                                <td id="env-git-auto-push">Loading...</td>
+                                            </tr>
+                                            <tr>
+                                                <th scope="row">ALLOW_GIT_IN_PRODUCTION</th>
+                                                <td id="env-allow-git">Loading...</td>
+                                            </tr>
+                                            <tr>
+                                                <th scope="row">GIT_USER_NAME</th>
+                                                <td id="env-git-user-name">Loading...</td>
+                                            </tr>
+                                            <tr>
+                                                <th scope="row">GIT_USER_EMAIL</th>
+                                                <td id="env-git-user-email">Loading...</td>
+                                            </tr>
+                                            <tr>
+                                                <th scope="row">GITHUB_TOKEN</th>
+                                                <td id="env-github-token">Loading...</td>
+                                            </tr>
+                                            <tr>
+                                                <th scope="row">GIT_REPOSITORY_URL</th>
+                                                <td id="env-git-repo-url">Loading...</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div class="card-footer">
+                                <div class="d-flex justify-content-between">
+                                    <button id="run-setup-btn" class="btn btn-warning">
+                                        <i class="fas fa-wrench"></i> Run Git Setup
+                                    </button>
+                                    <button id="force-save-btn" class="btn btn-danger">
+                                        <i class="fas fa-exclamation-triangle"></i> Force Save
+                                    </button>
+                                </div>
                             </div>
                         </div>
                         

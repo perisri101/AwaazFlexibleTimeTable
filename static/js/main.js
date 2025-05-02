@@ -77,6 +77,135 @@ $(document).ready(function() {
     $(document).on('click', '.remove-location', function() {
         $(this).closest('.location-rate-item').remove();
     });
+    
+    // Git connectivity test
+    $(document).on('click', '#test-git-btn', function() {
+        // Show the results section with loading indicators
+        $('#git-test-results').show();
+        
+        // Set all fields to loading state
+        $('#git-user-name, #git-user-email, #git-repo-url, #git-branch').text('Loading...');
+        $('#repo-access-status, #push-access-status').html('<div class="spinner-border spinner-border-sm text-primary" role="status"><span class="visually-hidden">Loading...</span></div> Testing...');
+        $('#env-git-auto-push, #env-allow-git, #env-git-user-name, #env-git-user-email, #env-github-token, #env-git-repo-url').text('Loading...');
+        
+        // Make the API call
+        $.ajax({
+            url: '/api/git/test-connection',
+            type: 'POST',
+            success: function(response) {
+                if (response.success) {
+                    // Update Git configuration
+                    $('#git-user-name').text(response.git_config['user.name']);
+                    $('#git-user-email').text(response.git_config['user.email']);
+                    $('#git-repo-url').text(response.git_config['remote.origin.url']);
+                    $('#git-branch').text(response.current_branch);
+                    
+                    // Update repository access status
+                    if (response.repository_access.success) {
+                        $('#repo-access-status').html('<span class="text-success"><i class="fas fa-check-circle"></i> Success</span>');
+                    } else {
+                        $('#repo-access-status').html('<span class="text-danger"><i class="fas fa-times-circle"></i> Failed</span><br><small class="text-muted">' + response.repository_access.error + '</small>');
+                    }
+                    
+                    // Update push access status
+                    if (response.push_access.success) {
+                        $('#push-access-status').html('<span class="text-success"><i class="fas fa-check-circle"></i> Success</span><br><small class="text-muted">Test file: ' + response.push_access.test_file + '</small>');
+                    } else {
+                        $('#push-access-status').html('<span class="text-danger"><i class="fas fa-times-circle"></i> Failed</span><br><small class="text-muted">' + response.push_access.error + '</small>');
+                    }
+                    
+                    // Update environment variables
+                    $('#env-git-auto-push').text(response.environment.GIT_AUTO_PUSH);
+                    $('#env-allow-git').text(response.environment.ALLOW_GIT_IN_PRODUCTION);
+                    $('#env-git-user-name').text(response.environment.GIT_USER_NAME);
+                    $('#env-git-user-email').text(response.environment.GIT_USER_EMAIL);
+                    $('#env-github-token').text(response.environment.GITHUB_TOKEN);
+                    $('#env-git-repo-url').text(response.environment.GIT_REPOSITORY_URL);
+                } else {
+                    showNotification('Error testing Git connectivity: ' + response.error, 'danger');
+                }
+            },
+            error: function(xhr) {
+                let errorMsg = 'Error testing Git connectivity';
+                try {
+                    const response = JSON.parse(xhr.responseText);
+                    if (response.error) {
+                        errorMsg += ': ' + response.error;
+                    }
+                } catch (e) {
+                    errorMsg += ': ' + xhr.statusText;
+                }
+                showNotification(errorMsg, 'danger');
+            }
+        });
+    });
+
+    // Run Git setup script
+    $(document).on('click', '#run-setup-btn', function() {
+        if (confirm('This will run the Git setup script to fix common issues. Continue?')) {
+            $.ajax({
+                url: '/api/git/run-setup',
+                type: 'POST',
+                success: function(response) {
+                    showNotification('Git setup completed. Please test connectivity again.', 'success');
+                    // Refresh the test results after a short delay
+                    setTimeout(function() {
+                        $('#test-git-btn').click();
+                    }, 1000);
+                },
+                error: function(xhr) {
+                    let errorMsg = 'Error running Git setup';
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        if (response.error) {
+                            errorMsg += ': ' + response.error;
+                        }
+                    } catch (e) {
+                        errorMsg += ': ' + xhr.statusText;
+                    }
+                    showNotification(errorMsg, 'danger');
+                }
+            });
+        }
+    });
+
+    // Force save changes
+    $(document).on('click', '#force-save-btn', function() {
+        const message = prompt('Enter a commit message for the force save:');
+        if (!message) return;
+        
+        if (confirm('This will attempt to force save changes, bypassing normal checks. Continue?')) {
+            $.ajax({
+                url: '/api/git/force-save',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ message: message }),
+                success: function(response) {
+                    if (response.success) {
+                        showNotification('Force save successful: ' + response.message, 'success');
+                    } else {
+                        showNotification('Force save completed with issues: ' + response.message, 'warning');
+                    }
+                    // Refresh the test results after a short delay
+                    setTimeout(function() {
+                        $('#test-git-btn').click();
+                    }, 1000);
+                },
+                error: function(xhr) {
+                    let errorMsg = 'Error during force save';
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        if (response.error) {
+                            errorMsg += ': ' + response.error;
+                        }
+                    } catch (e) {
+                        errorMsg += ': ' + xhr.statusText;
+                    }
+                    showNotification(errorMsg, 'danger');
+                }
+            });
+        }
+    });
 });
 
 // Initialize application
