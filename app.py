@@ -1791,6 +1791,73 @@ def pull_reset_api():
             'error': str(e)
         }), 500
 
+@app.route('/api/git/fix-credentials', methods=['POST'])
+def fix_git_credentials():
+    """Fix Git credential issues for GitHub authentication."""
+    try:
+        # Get GitHub token from environment
+        github_token = os.environ.get('GITHUB_TOKEN')
+        if not github_token:
+            return jsonify({
+                'success': False,
+                'error': 'GitHub token not found in environment variables'
+            }), 400
+            
+        # Configure credential helper to store credentials
+        subprocess.run(['git', 'config', '--global', 'credential.helper', 'store'], check=True)
+        
+        # Create .git-credentials file with token
+        home_dir = os.path.expanduser('~')
+        credentials_path = os.path.join(home_dir, '.git-credentials')
+        
+        # Format: https://username:token@github.com
+        repo_url = os.environ.get('GIT_REPOSITORY_URL', '')
+        
+        # Extract username from environment or use default
+        username = os.environ.get('GIT_USER_NAME', 'perisri101')
+        
+        # Create credentials string
+        if 'github.com' in repo_url:
+            credentials = f"https://{username}:{github_token}@github.com\n"
+            
+            # Write to .git-credentials file
+            with open(credentials_path, 'w') as f:
+                f.write(credentials)
+                
+            # Set permissions
+            os.chmod(credentials_path, 0o600)  # Read/write for owner only
+            
+            # Test authentication
+            try:
+                result = subprocess.run(['git', 'ls-remote', '--heads', 'origin'], 
+                                      check=False, capture_output=True, text=True, timeout=10)
+                
+                if result.returncode == 0:
+                    return jsonify({
+                        'success': True,
+                        'message': 'Git credentials configured successfully and authentication verified'
+                    })
+                else:
+                    return jsonify({
+                        'success': False,
+                        'error': f'Credentials configured but authentication failed: {result.stderr}'
+                    })
+            except Exception as e:
+                return jsonify({
+                    'success': False,
+                    'error': f'Credentials configured but authentication test failed: {str(e)}'
+                })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Repository URL does not contain github.com'
+            })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 if __name__ == '__main__':
     # Use environment variables for host and port if available
     port = int(os.environ.get('PORT', 8000))

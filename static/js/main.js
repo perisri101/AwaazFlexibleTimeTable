@@ -513,6 +513,66 @@ $(document).ready(function() {
             });
         }
     });
+
+    // Fix Git credentials
+    $(document).on('click', '#fix-credentials-btn', function() {
+        if (confirm('This will update your Git credentials for GitHub authentication. Continue?')) {
+            $.ajax({
+                url: '/api/git/fix-credentials',
+                type: 'POST',
+                success: function(response) {
+                    if (response.success) {
+                        showNotification(response.message, 'success');
+                    } else {
+                        showNotification('Error: ' + response.error, 'danger');
+                    }
+                    // Refresh Git test results
+                    setTimeout(function() {
+                        $('#test-git-btn').click();
+                    }, 1000);
+                },
+                error: function(xhr) {
+                    let errorMsg = 'Error fixing Git credentials';
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        if (response.error) {
+                            errorMsg += ': ' + response.error;
+                        }
+                    } catch (e) {
+                        errorMsg += ': ' + xhr.statusText;
+                    }
+                    showNotification(errorMsg, 'danger');
+                }
+            });
+        }
+    });
+
+    // Update repository URL with credentials
+    $(document).on('click', '#update-repo-url-with-auth-btn', function() {
+        // Get values from form
+        const username = $('#env-git-user-name-input').val();
+        const token = $('#env-github-token-input').val();
+        const repoUrl = $('#env-git-repo-url-input').val();
+        
+        if (!username || !token || !repoUrl) {
+            showNotification('Please fill in username, token, and repository URL first', 'warning');
+            return;
+        }
+        
+        // Format: https://username:token@github.com/username/repo.git
+        let newUrl = repoUrl;
+        
+        // Remove any existing auth info
+        newUrl = newUrl.replace(/https:\/\/[^@]+@github\.com/, 'https://github.com');
+        
+        // Add new auth info
+        newUrl = newUrl.replace('https://github.com', `https://${username}:${token}@github.com`);
+        
+        // Update the input field
+        $('#env-git-repo-url-input').val(newUrl);
+        
+        showNotification('Repository URL updated with authentication information. Click "Save Changes" to apply.', 'info');
+    });
 });
 
 // Initialize application
