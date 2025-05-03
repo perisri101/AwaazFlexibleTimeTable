@@ -100,13 +100,15 @@ function updateDashboardCount(elementId, count) {
  * Display templates in the UI
  */
 function displayTemplates() {
-    const container = $('#templates-container');
+    const container = $('#templates-list-container');
     container.empty();
     
     if (templatesModule.templates.length === 0) {
-        container.html('<div class="no-items-message">No templates found. Create your first template!</div>');
+        $('#no-templates-message').show();
         return;
     }
+    
+    $('#no-templates-message').hide();
     
     const templatesList = $('<div class="list-group templates-list"></div>');
     
@@ -179,10 +181,13 @@ function cancelTemplateForm() {
  * Save template to server
  */
 function saveTemplate() {
+    console.log('Saving template...');
     const data = {
         name: $('#template-name').val(),
         description: $('#template-description').val()
     };
+    
+    console.log('Template data:', data);
     
     if (!data.name) {
         showNotification('Template name is required', 'warning');
@@ -193,19 +198,22 @@ function saveTemplate() {
     const url = id ? `/api/templates/${id}` : '/api/templates';
     const method = id ? 'PUT' : 'POST';
     
+    console.log(`Sending ${method} request to ${url}`);
+    
     $.ajax({
         url: url,
         type: method,
         contentType: 'application/json',
         data: JSON.stringify(data),
         success: function(response) {
+            console.log('Template saved successfully:', response);
             cancelTemplateForm();
             loadTemplates();
             showNotification(`Template ${id ? 'updated' : 'created'} successfully`, 'success');
         },
         error: function(xhr) {
-            showNotification(`Failed to ${id ? 'update' : 'create'} template`, 'danger');
             console.error(`Error ${id ? 'updating' : 'creating'} template:`, xhr);
+            showNotification(`Failed to ${id ? 'update' : 'create'} template`, 'danger');
         }
     });
 }
@@ -302,51 +310,24 @@ function createEmptySchedule() {
  * Populate the schedule table with data
  */
 function populateScheduleTable() {
-    console.log("Populating schedule table");
+    // Clear previous table
+    const tableBody = $('#schedule-table-body');
+    tableBody.empty();
     
-    // Define time slots
+    // Get time slots and days
     const timeSlots = [
         '00-02', '02-04', '04-06', '06-08', '08-10', '10-12',
         '12-14', '14-16', '16-18', '18-20', '20-22', '22-24'
     ];
     
-    // Define days
     const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-    
-    // Format day names for display
-    const dayLabels = {
-        'monday': 'Mon',
-        'tuesday': 'Tue',
-        'wednesday': 'Wed',
-        'thursday': 'Thu',
-        'friday': 'Fri',
-        'saturday': 'Sat',
-        'sunday': 'Sun'
-    };
-    
-    // Get table container
-    const tableContainer = $('#schedule-table-container');
-    tableContainer.empty();
-    
-    // Create responsive table
-    const table = $('<div class="schedule-table"></div>');
-    
-    // Create header row
-    const headerRow = $('<div class="schedule-row header-row"></div>');
-    headerRow.append('<div class="schedule-cell time-cell">Time</div>');
-    
-    days.forEach(day => {
-        headerRow.append(`<div class="schedule-cell day-cell">${dayLabels[day]}</div>`);
-    });
-    
-    table.append(headerRow);
     
     // Create rows for each time slot
     timeSlots.forEach(time => {
-        const row = $(`<div class="schedule-row" data-time="${time}"></div>`);
+        const row = $('<tr>').addClass('schedule-row').attr('data-time', time);
         
         // Add time column
-        row.append(`<div class="schedule-cell time-cell">${time}</div>`);
+        row.append($('<td>').addClass('time-cell').text(time));
         
         // Add day columns
         days.forEach(day => {
@@ -365,7 +346,11 @@ function populateScheduleTable() {
             const cellData = templatesModule.currentScheduleData[day][time];
             const hasContent = cellData.caregivers.length > 0 || cellData.activities.length > 0;
             
-            const cell = $(`<div class="schedule-cell day-slot ${hasContent ? 'has-content' : ''}" data-day="${day}" data-time="${time}"></div>`);
+            const cell = $('<td>')
+                .addClass('schedule-cell day-slot')
+                .addClass(hasContent ? 'has-content' : '')
+                .attr('data-day', day)
+                .attr('data-time', time);
             
             if (hasContent) {
                 cell.html(createCellContentHtml(cellData));
@@ -374,10 +359,8 @@ function populateScheduleTable() {
             row.append(cell);
         });
         
-        table.append(row);
+        tableBody.append(row);
     });
-    
-    tableContainer.append(table);
 }
 
 /**
@@ -605,13 +588,15 @@ function saveSchedule() {
  * Display calendars in the UI
  */
 function displayCalendars() {
-    const container = $('#calendars-container');
+    const container = $('#calendars-list-container');
     container.empty();
     
     if (calendarsModule.calendars.length === 0) {
-        container.html('<div class="no-items-message">No calendars found. Create your first calendar!</div>');
+        $('#no-calendars-message').show();
         return;
     }
+    
+    $('#no-calendars-message').hide();
     
     const calendarsList = $('<div class="list-group calendars-list"></div>');
     
@@ -963,6 +948,8 @@ function showNotification(message, type = 'info') {
 function loadTemplatesCalendarsContent() {
     $.get('/templates/templates-calendars.html')
         .done(function(html) {
+            console.log('Templates-calendars.html loaded successfully');
+            
             // Parse the HTML
             const parser = new DOMParser();
             const doc = parser.parseFromString(html, 'text/html');
@@ -974,10 +961,16 @@ function loadTemplatesCalendarsContent() {
             // Replace content in the existing containers
             if (templatesSection) {
                 $('#templates').html(templatesSection.innerHTML);
+                console.log('Templates section loaded');
+            } else {
+                console.error('Could not find templates-content section in the HTML');
             }
             
             if (calendarsSection) {
                 $('#calendars').html(calendarsSection.innerHTML);
+                console.log('Calendars section loaded');
+            } else {
+                console.error('Could not find calendars-content section in the HTML');
             }
             
             // Initialize now that the content is loaded
@@ -998,32 +991,38 @@ function initializeTemplatesCalendars() {
     // Load templates and calendars
     loadTemplates();
     loadCalendars();
+    loadRequiredData();
+    
+    console.log('Binding event handlers...');
     
     // Template list view buttons
-    $('#add-template-btn').on('click', function() {
+    $(document).on('click', '#add-template-btn', function() {
+        console.log('Add template button clicked');
         showTemplateForm();
     });
     
     // Template form buttons
-    $('#save-template-btn').on('click', function() {
+    $(document).on('click', '#save-template-btn', function() {
+        console.log('Save template button clicked');
         saveTemplate();
     });
     
-    $('#back-to-templates-btn, #cancel-template-btn').on('click', function() {
+    $(document).on('click', '#back-to-templates-btn, #cancel-template-btn', function() {
+        console.log('Cancel template button clicked');
         cancelTemplateForm();
     });
     
     // Schedule editor buttons
-    $('#save-schedule-btn').on('click', function() {
+    $(document).on('click', '#save-schedule-btn', function() {
         saveSchedule();
     });
     
-    $('#back-from-schedule-btn').on('click', function() {
+    $(document).on('click', '#back-from-schedule-btn', function() {
         cancelScheduleEditor();
     });
     
     // Cell editor buttons
-    $('#add-caregiver-btn').on('click', function() {
+    $(document).on('click', '#add-caregiver-btn', function() {
         const caregiverId = $('#select-caregiver').val();
         if (caregiverId && !templatesModule.currentCell.caregivers.includes(caregiverId)) {
             templatesModule.currentCell.caregivers.push(caregiverId);
@@ -1031,7 +1030,7 @@ function initializeTemplatesCalendars() {
         }
     });
     
-    $('#add-activity-btn').on('click', function() {
+    $(document).on('click', '#add-activity-btn', function() {
         const activityId = $('#select-activity').val();
         if (activityId && !templatesModule.currentCell.activities.includes(activityId)) {
             templatesModule.currentCell.activities.push(activityId);
@@ -1039,16 +1038,16 @@ function initializeTemplatesCalendars() {
         }
     });
     
-    $('#save-cell-btn, #save-cell-changes-btn').on('click', function() {
+    $(document).on('click', '#save-cell-btn, #save-cell-changes-btn', function() {
         saveCellChanges();
     });
     
-    $('#back-from-cell-btn, #cancel-cell-edit-btn').on('click', function() {
+    $(document).on('click', '#back-from-cell-btn, #cancel-cell-edit-btn', function() {
         cancelCellEditor();
     });
     
     // Category filter change
-    $('#category-filter').on('change', function() {
+    $(document).on('change', '#category-filter', function() {
         const categoryId = $(this).val();
         updateActivitiesDropdown(categoryId);
     });
@@ -1088,11 +1087,79 @@ function initializeTemplatesCalendars() {
         const time = $(this).data('time');
         showCellEditor(day, time);
     });
+    
+    // Calendar buttons
+    $(document).on('click', '#add-calendar-btn', function() {
+        showCalendarForm();
+    });
+    
+    $(document).on('click', '#save-calendar-btn', function() {
+        saveCalendar();
+    });
+    
+    $(document).on('click', '#back-to-calendars-btn, #cancel-calendar-btn', function() {
+        cancelCalendarForm();
+    });
+    
+    $(document).on('click', '#back-from-calendar-view-btn', function() {
+        showCalendarsList();
+    });
+    
+    $(document).on('click', '#edit-calendar-schedule-btn', function() {
+        editCalendarSchedule();
+    });
+    
+    // Calendar navigation
+    $(document).on('click', '#prev-week-btn', function() {
+        navigateCalendar(-1);
+    });
+    
+    $(document).on('click', '#next-week-btn', function() {
+        navigateCalendar(1);
+    });
+    
+    $(document).on('click', '#print-calendar-btn', function() {
+        printCalendar();
+    });
+    
+    // Calendar list event delegation
+    $(document).on('click', '.view-calendar', function() {
+        const id = $(this).data('id');
+        showCalendarView(id);
+    });
+    
+    $(document).on('click', '.edit-calendar', function() {
+        const id = $(this).data('id');
+        showCalendarForm(id);
+    });
+    
+    $(document).on('click', '.delete-calendar', function() {
+        const id = $(this).data('id');
+        if (confirm('Are you sure you want to delete this calendar?')) {
+            $.ajax({
+                url: `/api/calendars/${id}`,
+                type: 'DELETE',
+                success: function() {
+                    loadCalendars();
+                    showNotification('Calendar deleted successfully', 'success');
+                },
+                error: function(xhr) {
+                    showNotification('Failed to delete calendar', 'danger');
+                    console.error('Error deleting calendar:', xhr);
+                }
+            });
+        }
+    });
 }
 
 // Initialize when the document is ready
 $(document).ready(function() {
     console.log('Templates and calendars module loaded');
+    
+    // Create toast container if it doesn't exist
+    if ($('#toast-container').length === 0) {
+        $('body').append('<div id="toast-container" class="toast-container position-fixed bottom-0 end-0 p-3"></div>');
+    }
     
     // Load templates and calendars content
     loadTemplatesCalendarsContent();
