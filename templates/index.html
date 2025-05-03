@@ -887,7 +887,7 @@
     </div>
 
     <!-- Schedule Modal -->
-    <div class="modal fade" id="scheduleModal" tabindex="-1" aria-labelledby="scheduleModalLabel" aria-hidden="true">
+    <div class="modal fade" id="scheduleModal" tabindex="-1" aria-labelledby="scheduleModalLabel">
         <div class="modal-dialog modal-xl">
             <div class="modal-content">
                 <div class="modal-header">
@@ -1069,8 +1069,8 @@
         </div>
     </div>
 
-    <!-- Add this modal for editing schedule cells -->
-    <div class="modal fade" id="editCellModal" tabindex="-1" aria-labelledby="editCellModalLabel" aria-hidden="true">
+    <!-- Edit Cell Modal with Bulk Selection -->
+    <div class="modal fade" id="editCellModal" tabindex="-1" aria-labelledby="editCellModalLabel">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
@@ -1078,6 +1078,127 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
+                    <!-- Bulk Selection Section -->
+                    <div class="card mb-3">
+                        <div class="card-header bg-light">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="enable-bulk-selection">
+                                <label class="form-check-label" for="enable-bulk-selection">Enable Bulk Selection</label>
+                            </div>
+                        </div>
+                        <div class="card-body bulk-selection-options" style="display: none;">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6>Days</h6>
+                                    <div class="quick-select-buttons mb-2">
+                                        <button type="button" class="btn btn-sm btn-outline-primary" id="select-all-days">All Days</button>
+                                        <button type="button" class="btn btn-sm btn-outline-primary" id="select-weekdays">Weekdays</button>
+                                        <button type="button" class="btn btn-sm btn-outline-primary" id="select-weekend">Weekend</button>
+                                    </div>
+                                    <div class="days-checkboxes">
+                                        <div class="form-check">
+                                            <input class="form-check-input day-checkbox" type="checkbox" value="monday" id="day-monday">
+                                            <label class="form-check-label" for="day-monday">Monday</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input day-checkbox" type="checkbox" value="tuesday" id="day-tuesday">
+                                            <label class="form-check-label" for="day-tuesday">Tuesday</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input day-checkbox" type="checkbox" value="wednesday" id="day-wednesday">
+                                            <label class="form-check-label" for="day-wednesday">Wednesday</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input day-checkbox" type="checkbox" value="thursday" id="day-thursday">
+                                            <label class="form-check-label" for="day-thursday">Thursday</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input day-checkbox" type="checkbox" value="friday" id="day-friday">
+                                            <label class="form-check-label" for="day-friday">Friday</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input day-checkbox" type="checkbox" value="saturday" id="day-saturday">
+                                            <label class="form-check-label" for="day-saturday">Saturday</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input day-checkbox" type="checkbox" value="sunday" id="day-sunday">
+                                            <label class="form-check-label" for="day-sunday">Sunday</label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6>Time Slots</h6>
+                                    <div class="quick-select-buttons mb-2">
+                                        <button type="button" class="btn btn-sm btn-outline-primary" id="select-all-times">All Times</button>
+                                        <button type="button" class="btn btn-sm btn-outline-primary" id="select-morning">Morning</button>
+                                        <button type="button" class="btn btn-sm btn-outline-primary" id="select-afternoon">Afternoon</button>
+                                        <button type="button" class="btn btn-sm btn-outline-primary" id="select-evening">Evening</button>
+                                        <button type="button" class="btn btn-sm btn-outline-primary" id="select-night">Night</button>
+                                    </div>
+                                    <div class="time-slots-checkboxes">
+                                        <div class="form-check">
+                                            <input class="form-check-input time-checkbox" type="checkbox" value="00-02" id="time-00-02">
+                                            <label class="form-check-label" for="time-00-02">00-02</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input time-checkbox" type="checkbox" value="02-04" id="time-02-04">
+                                            <label class="form-check-label" for="time-02-04">02-04</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input time-checkbox" type="checkbox" value="04-06" id="time-04-06">
+                                            <label class="form-check-label" for="time-04-06">04-06</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input time-checkbox" type="checkbox" value="06-08" id="time-06-08">
+                                            <label class="form-check-label" for="time-06-08">06-08</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input time-checkbox" type="checkbox" value="08-10" id="time-08-10">
+                                            <label class="form-check-label" for="time-08-10">08-10</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input time-checkbox" type="checkbox" value="10-12" id="time-10-12">
+                                            <label class="form-check-label" for="time-10-12">10-12</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input time-checkbox" type="checkbox" value="12-14" id="time-12-14">
+                                            <label class="form-check-label" for="time-12-14">12-14</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input time-checkbox" type="checkbox" value="14-16" id="time-14-16">
+                                            <label class="form-check-label" for="time-14-16">14-16</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input time-checkbox" type="checkbox" value="16-18" id="time-16-18">
+                                            <label class="form-check-label" for="time-16-18">16-18</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input time-checkbox" type="checkbox" value="18-20" id="time-18-20">
+                                            <label class="form-check-label" for="time-18-20">18-20</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input time-checkbox" type="checkbox" value="20-22" id="time-20-22">
+                                            <label class="form-check-label" for="time-20-22">20-22</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input time-checkbox" type="checkbox" value="22-24" id="time-22-24">
+                                            <label class="form-check-label" for="time-22-24">22-24</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-2">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="replace-existing-data">
+                                    <label class="form-check-label" for="replace-existing-data">
+                                        Replace existing data (if unchecked, will merge with existing data)
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Rest of the modal content -->
                     <div class="row">
                         <!-- Left column: Caregivers -->
                         <div class="col-md-6">

@@ -401,4 +401,85 @@ select[multiple] option:checked {
 .assigned-caregivers-container, .assigned-activities-container {
     max-height: 250px;
     overflow-y: auto;
+}
+
+/* Bulk selection styles */
+.bulk-selection-options {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.days-checkboxes, .time-slots-checkboxes {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 5px;
+}
+
+.quick-select-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-bottom: 10px;
+}
+
+.quick-select-buttons button {
+    font-size: 0.8rem;
+    padding: 2px 8px;
+}
+
+/* Schedule table styles */
+.schedule-table {
+    table-layout: fixed;
+}
+
+.schedule-cell {
+    height: 60px;
+    vertical-align: top;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.schedule-cell:hover {
+    background-color: #f8f9fa;
+}
+
+.schedule-cell.has-content {
+    background-color: #e9f5ff;
+}
+
+.cell-content {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.caregivers-count, .activities-count {
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+/* Modal accessibility fixes */
+.modal {
+    outline: none;
+}
+
+.modal-dialog {
+    outline: none;
+}
+
+.modal-content {
+    outline: none;
+}
+
+/* Make sure modals are visible when shown */
+.modal.fade.show {
+    display: block !important;
+    opacity: 1 !important;
+}
+
+/* Fix for modal backdrop */
+.modal-backdrop {
+    opacity: 0.5 !important;
 } 
