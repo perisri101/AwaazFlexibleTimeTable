@@ -1,19 +1,19 @@
 /**
  * Templates and Calendars Module
- * Handles all functionality related to schedule templates and calendars
+ * Simplified implementation focusing on reliability
  */
 
-// ==========================================
-// GLOBAL VARIABLES
-// ==========================================
+// Module state
 const templateModule = {
     templates: [],
-    calendars: [],
     currentTemplate: null,
     currentScheduleData: {},
-    currentCellDay: '',
-    currentCellTime: '',
-    currentCellData: { caregivers: [], activities: [] }
+    currentCell: {
+        day: '',
+        time: '',
+        caregivers: [],
+        activities: []
+    }
 };
 
 // ==========================================
@@ -26,34 +26,32 @@ const templateModule = {
 function loadTemplates() {
     console.log("Loading templates...");
     
-    return $.ajax({
-        url: '/api/templates',
-        type: 'GET',
-        success: function(data) {
+    $.get('/api/templates')
+        .done(function(data) {
             console.log(`Loaded ${data.length} templates`);
             templateModule.templates = data;
             displayTemplates();
-        },
-        error: function(xhr) {
+        })
+        .fail(function(xhr) {
             console.error("Failed to load templates:", xhr);
             showNotification('Failed to load templates', 'danger');
-        }
-    });
+        });
 }
 
 /**
  * Display templates in the UI
  */
 function displayTemplates() {
-    let html = '';
+    const container = $('#templates-list');
+    container.empty();
     
     if (templateModule.templates.length === 0) {
-        $('#templates-list').html('<div class="col-12 text-center">No templates found</div>');
+        container.html('<div class="col-12 text-center">No templates found</div>');
         return;
     }
     
     templateModule.templates.forEach(template => {
-        html += `
+        const card = $(`
             <div class="col-md-4 mb-4">
                 <div class="card h-100">
                     <div class="card-body">
@@ -77,52 +75,39 @@ function displayTemplates() {
                     </div>
                 </div>
             </div>
-        `;
-    });
-    
-    $('#templates-list').html(html);
-    
-    // Attach event handlers
-    $('.edit-template').on('click', function() {
-        const id = $(this).data('id');
-        editTemplate(id);
-    });
-    
-    $('.delete-template').on('click', function() {
-        const id = $(this).data('id');
-        deleteTemplate(id);
-    });
-    
-    $('.edit-schedule').on('click', function() {
-        const id = $(this).data('id');
-        editSchedule(id);
+        `);
+        
+        container.append(card);
     });
 }
 
 /**
- * Show modal for adding/editing a template
+ * Add or edit a template
  */
-function showTemplateModal(template = null) {
-    console.log("Showing template modal", template);
-    
+function editTemplate(id = null) {
     // Reset form
     $('#template-form')[0].reset();
     
-    if (template) {
-        // Edit mode
-        $('#templateModalLabel').text('Edit Template');
-        $('#template-id').val(template.id);
-        $('#template-name').val(template.name);
-        $('#template-description').val(template.description);
+    if (id) {
+        // Edit existing template
+        const template = templateModule.templates.find(t => t.id === id);
+        if (template) {
+            $('#templateModalLabel').text('Edit Template');
+            $('#template-id').val(template.id);
+            $('#template-name').val(template.name);
+            $('#template-description').val(template.description);
+        } else {
+            console.error(`Template with ID ${id} not found`);
+            return;
+        }
     } else {
-        // Add mode
+        // Add new template
         $('#templateModalLabel').text('Add Template');
         $('#template-id').val('');
     }
     
     // Show modal
-    const modal = new bootstrap.Modal(document.getElementById('templateModal'));
-    modal.show();
+    $('#templateModal').modal('show');
 }
 
 /**
@@ -142,7 +127,6 @@ function saveTemplate() {
     
     const url = id ? `/api/templates/${id}` : '/api/templates';
     const method = id ? 'PUT' : 'POST';
-    const successMessage = id ? 'Template updated successfully' : 'Template created successfully';
     
     $.ajax({
         url: url,
@@ -150,10 +134,9 @@ function saveTemplate() {
         contentType: 'application/json',
         data: JSON.stringify(data),
         success: function(response) {
-            const modal = bootstrap.Modal.getInstance(document.getElementById('templateModal'));
-            modal.hide();
+            $('#templateModal').modal('hide');
             loadTemplates();
-            showNotification(successMessage, 'success');
+            showNotification(`Template ${id ? 'updated' : 'created'} successfully`, 'success');
         },
         error: function(xhr) {
             showNotification(`Failed to ${id ? 'update' : 'create'} template`, 'danger');
@@ -163,31 +146,14 @@ function saveTemplate() {
 }
 
 /**
- * Edit an existing template
- */
-function editTemplate(id) {
-    const template = templateModule.templates.find(t => t.id === id);
-    if (template) {
-        showTemplateModal(template);
-    } else {
-        $.get(`/api/templates/${id}`, function(template) {
-            showTemplateModal(template);
-        }).fail(function(xhr) {
-            showNotification('Failed to load template', 'danger');
-            console.error('Error loading template:', xhr);
-        });
-    }
-}
-
-/**
  * Delete a template
  */
 function deleteTemplate(id) {
-    if (confirm('Are you sure you want to delete this template? This action cannot be undone.')) {
+    if (confirm('Are you sure you want to delete this template?')) {
         $.ajax({
             url: `/api/templates/${id}`,
             type: 'DELETE',
-            success: function(response) {
+            success: function() {
                 loadTemplates();
                 showNotification('Template deleted successfully', 'success');
             },
@@ -199,69 +165,44 @@ function deleteTemplate(id) {
     }
 }
 
+// ==========================================
+// SCHEDULE OPERATIONS
+// ==========================================
+
 /**
  * Edit schedule for a template
  */
 function editSchedule(id) {
     console.log("Editing schedule for template ID:", id);
     
-    // Reset the modal first
-    resetScheduleModal();
-    
-    // Load template data
-    $.get(`/api/templates/${id}`, function(template) {
-        console.log("Template data loaded:", template);
-        templateModule.currentTemplate = template;
-        
-        // Initialize schedule data
-        templateModule.currentScheduleData = template.schedule || createEmptySchedule();
-        console.log("Current schedule data:", templateModule.currentScheduleData);
-        
-        // Set template ID in hidden field
-        $('#schedule-template-id').val(id);
-        
-        // Set modal title
-        $('#scheduleModalLabel').text(`Edit Schedule: ${template.name}`);
-        
-        // Initialize schedule table
-        populateScheduleTable();
-        
-        // Force any existing modal to be hidden first
-        const existingModal = bootstrap.Modal.getInstance(document.getElementById('scheduleModal'));
-        if (existingModal) {
-            existingModal.hide();
-            existingModal.dispose();
-        }
-        
-        // Show modal with a slight delay to ensure DOM is updated
-        setTimeout(() => {
-            const scheduleModal = document.getElementById('scheduleModal');
-            const modal = new bootstrap.Modal(scheduleModal);
-            modal.show();
+    $.get(`/api/templates/${id}`)
+        .done(function(template) {
+            console.log("Template data loaded:", template);
+            templateModule.currentTemplate = template;
+            templateModule.currentScheduleData = template.schedule || createEmptySchedule();
             
-            // Debug the modal state
-            debugModal('scheduleModal');
+            // Set template ID in hidden field
+            $('#schedule-template-id').val(id);
             
-            // Set focus to the first focusable element
-            setTimeout(() => {
-                const firstFocusable = scheduleModal.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
-                if (firstFocusable) {
-                    firstFocusable.focus();
-                }
-            }, 300);
-        }, 100);
-    }).fail(function(xhr) {
-        showNotification('Failed to load template', 'danger');
-        console.error('Error loading template:', xhr);
-    });
+            // Set modal title
+            $('#scheduleModalLabel').text(`Edit Schedule: ${template.name}`);
+            
+            // Populate schedule table
+            populateScheduleTable();
+            
+            // Show modal
+            $('#scheduleModal').modal('show');
+        })
+        .fail(function(xhr) {
+            showNotification('Failed to load template', 'danger');
+            console.error('Error loading template:', xhr);
+        });
 }
 
 /**
  * Create an empty schedule template
  */
 function createEmptySchedule() {
-    console.log("Creating empty schedule");
-    
     const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
     const timeSlots = [
         '00-02', '02-04', '04-06', '06-08', '08-10', '10-12',
@@ -304,10 +245,14 @@ function populateScheduleTable() {
     
     // Create rows for each time slot
     timeSlots.forEach(time => {
-        let row = `<tr><td>${time}</td>`;
+        const row = $('<tr></tr>');
         
+        // Add time column
+        row.append(`<td>${time}</td>`);
+        
+        // Add day columns
         days.forEach(day => {
-            // Make sure the day and time exist in the schedule data
+            // Ensure the day and time exist in the schedule data
             if (!templateModule.currentScheduleData[day]) {
                 templateModule.currentScheduleData[day] = {};
             }
@@ -320,26 +265,18 @@ function populateScheduleTable() {
             }
             
             const cellData = templateModule.currentScheduleData[day][time];
-            const hasContent = cellData && (cellData.caregivers.length > 0 || cellData.activities.length > 0);
+            const hasContent = cellData.caregivers.length > 0 || cellData.activities.length > 0;
             
-            row += `<td class="schedule-cell ${hasContent ? 'has-content' : ''}" data-day="${day}" data-time="${time}">`;
+            const cell = $(`<td class="schedule-cell ${hasContent ? 'has-content' : ''}" data-day="${day}" data-time="${time}"></td>`);
             
             if (hasContent) {
-                row += createCellContentHtml(cellData);
+                cell.html(createCellContentHtml(cellData));
             }
             
-            row += '</td>';
+            row.append(cell);
         });
         
-        row += '</tr>';
         tableBody.append(row);
-    });
-    
-    // Add click handlers to cells
-    $('.schedule-cell').on('click', function() {
-        const day = $(this).data('day');
-        const time = $(this).data('time');
-        openCellEditModal(day, time);
     });
 }
 
@@ -362,58 +299,76 @@ function createCellContentHtml(cellData) {
 }
 
 /**
+ * Save schedule to server
+ */
+function saveSchedule() {
+    const templateId = $('#schedule-template-id').val();
+    
+    if (!templateId) {
+        showNotification('Template ID is missing', 'danger');
+        return;
+    }
+    
+    const data = {
+        schedule: templateModule.currentScheduleData
+    };
+    
+    $.ajax({
+        url: `/api/templates/${templateId}`,
+        type: 'PATCH',
+        contentType: 'application/json',
+        data: JSON.stringify(data),
+        success: function(response) {
+            $('#scheduleModal').modal('hide');
+            showNotification('Schedule saved successfully', 'success');
+        },
+        error: function(xhr) {
+            showNotification('Failed to save schedule', 'danger');
+            console.error('Error saving schedule:', xhr);
+        }
+    });
+}
+
+/**
  * Open modal for editing a cell
  */
 function openCellEditModal(day, time) {
     console.log(`Opening cell edit modal for ${day} ${time}`);
     
-    // Reset the modal first
-    resetEditCellModal();
-    
     // Format day name for display
     const formattedDay = day.charAt(0).toUpperCase() + day.slice(1);
     
     // Set current cell information
-    templateModule.currentCellDay = day;
-    templateModule.currentCellTime = time;
+    templateModule.currentCell = {
+        day: day,
+        time: time,
+        caregivers: [...templateModule.currentScheduleData[day][time].caregivers],
+        activities: [...templateModule.currentScheduleData[day][time].activities]
+    };
     
     // Update modal title
     $('#cell-day-time').text(`${formattedDay} ${time}`);
     
-    // Check the current day and time in bulk selection
-    $(`#day-${day}`).prop('checked', true);
-    $(`#time-${time}`).prop('checked', true);
-    
-    // Get current cell data
-    const cellData = templateModule.currentScheduleData[day][time] || { caregivers: [], activities: [] };
-    templateModule.currentCellData = {
-        caregivers: [...cellData.caregivers],
-        activities: [...cellData.activities]
-    };
-    
-    // Load caregivers and activities
-    $.when(
+    // Load data and populate dropdowns
+    Promise.all([
         $.get('/api/caregivers'),
         $.get('/api/activities'),
         $.get('/api/categories')
-    ).done(function(caregiversResponse, activitiesResponse, categoriesResponse) {
-        const caregivers = caregiversResponse[0];
-        const activities = activitiesResponse[0];
-        const categories = categoriesResponse[0];
-        
+    ])
+    .then(([caregivers, activities, categories]) => {
         // Populate caregivers dropdown
-        let caregiversHtml = '<option value="">Select Caregiver</option>';
+        const caregiversSelect = $('#caregiver-select');
+        caregiversSelect.empty().append('<option value="">Select Caregiver</option>');
         caregivers.forEach(caregiver => {
-            caregiversHtml += `<option value="${caregiver.id}">${caregiver.name}</option>`;
+            caregiversSelect.append(`<option value="${caregiver.id}">${caregiver.name}</option>`);
         });
-        $('#caregiver-select').html(caregiversHtml);
         
         // Populate categories dropdown
-        let categoriesHtml = '<option value="">All Categories</option>';
+        const categoriesSelect = $('#category-select');
+        categoriesSelect.empty().append('<option value="">All Categories</option>');
         categories.forEach(category => {
-            categoriesHtml += `<option value="${category.id}">${category.name}</option>`;
+            categoriesSelect.append(`<option value="${category.id}">${category.name}</option>`);
         });
-        $('#category-select').html(categoriesHtml);
         
         // Populate activities dropdown
         updateActivitiesDropdown(activities);
@@ -422,31 +377,11 @@ function openCellEditModal(day, time) {
         updateAssignedCaregiversList(caregivers);
         updateAssignedActivitiesList(activities);
         
-        // Force any existing modal to be hidden first
-        const existingModal = bootstrap.Modal.getInstance(document.getElementById('editCellModal'));
-        if (existingModal) {
-            existingModal.hide();
-            existingModal.dispose();
-        }
-        
-        // Show modal with a slight delay to ensure DOM is updated
-        setTimeout(() => {
-            const editCellModal = document.getElementById('editCellModal');
-            const modal = new bootstrap.Modal(editCellModal);
-            modal.show();
-            
-            // Debug the modal state
-            debugModal('editCellModal');
-            
-            // Set focus to the first focusable element
-            setTimeout(() => {
-                const firstFocusable = editCellModal.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
-                if (firstFocusable) {
-                    firstFocusable.focus();
-                }
-            }, 300);
-        }, 100);
-    }).fail(function() {
+        // Show modal
+        $('#editCellModal').modal('show');
+    })
+    .catch(error => {
+        console.error('Error loading data:', error);
         showNotification('Failed to load data', 'danger');
     });
 }
@@ -458,16 +393,8 @@ function updateAssignedCaregiversList(allCaregivers) {
     const list = $('#assigned-caregivers-list');
     list.empty();
     
-    if (!templateModule.currentCellData.caregivers.length) {
+    if (!templateModule.currentCell.caregivers.length) {
         list.html('<li class="list-group-item text-muted">No caregivers assigned</li>');
-        return;
-    }
-    
-    // If allCaregivers is not provided, fetch them
-    if (!allCaregivers) {
-        $.get('/api/caregivers', function(caregivers) {
-            updateAssignedCaregiversList(caregivers);
-        });
         return;
     }
     
@@ -478,25 +405,17 @@ function updateAssignedCaregiversList(allCaregivers) {
     });
     
     // Create list items
-    templateModule.currentCellData.caregivers.forEach(caregiverId => {
+    templateModule.currentCell.caregivers.forEach(caregiverId => {
         const name = caregiversMap[caregiverId] || `Unknown (${caregiverId})`;
-        const item = `
+        const item = $(`
             <li class="list-group-item d-flex justify-content-between align-items-center">
                 ${name}
                 <button type="button" class="btn btn-sm btn-danger remove-caregiver" data-id="${caregiverId}">
                     <i class="fas fa-times"></i>
                 </button>
             </li>
-        `;
+        `);
         list.append(item);
-    });
-    
-    // Add event handlers for remove buttons
-    $('.remove-caregiver').off('click').on('click', function() {
-        const id = $(this).data('id');
-        console.log(`Removing caregiver with ID: ${id}`);
-        templateModule.currentCellData.caregivers = templateModule.currentCellData.caregivers.filter(cid => cid !== id);
-        updateAssignedCaregiversList(allCaregivers);
     });
 }
 
@@ -507,16 +426,8 @@ function updateAssignedActivitiesList(allActivities) {
     const list = $('#assigned-activities-list');
     list.empty();
     
-    if (!templateModule.currentCellData.activities.length) {
+    if (!templateModule.currentCell.activities.length) {
         list.html('<li class="list-group-item text-muted">No activities assigned</li>');
-        return;
-    }
-    
-    // If allActivities is not provided, fetch them
-    if (!allActivities) {
-        $.get('/api/activities', function(activities) {
-            updateAssignedActivitiesList(activities);
-        });
         return;
     }
     
@@ -527,25 +438,17 @@ function updateAssignedActivitiesList(allActivities) {
     });
     
     // Create list items
-    templateModule.currentCellData.activities.forEach(activityId => {
+    templateModule.currentCell.activities.forEach(activityId => {
         const name = activitiesMap[activityId] || `Unknown (${activityId})`;
-        const item = `
+        const item = $(`
             <li class="list-group-item d-flex justify-content-between align-items-center">
                 ${name}
                 <button type="button" class="btn btn-sm btn-danger remove-activity" data-id="${activityId}">
                     <i class="fas fa-times"></i>
                 </button>
             </li>
-        `;
+        `);
         list.append(item);
-    });
-    
-    // Add event handlers for remove buttons
-    $('.remove-activity').off('click').on('click', function() {
-        const id = $(this).data('id');
-        console.log(`Removing activity with ID: ${id}`);
-        templateModule.currentCellData.activities = templateModule.currentCellData.activities.filter(aid => aid !== id);
-        updateAssignedActivitiesList(allActivities);
     });
 }
 
@@ -568,134 +471,39 @@ function updateActivitiesDropdown(activities, categoryId) {
     }
     
     // Build dropdown options
-    let html = '<option value="">Select Activity</option>';
+    const activitySelect = $('#activity-select');
+    activitySelect.empty().append('<option value="">Select Activity</option>');
     filteredActivities.forEach(activity => {
-        html += `<option value="${activity.id}">${activity.name}</option>`;
+        activitySelect.append(`<option value="${activity.id}">${activity.name}</option>`);
     });
-    
-    $('#activity-select').html(html);
 }
 
 /**
- * Save changes to the current cell and any selected cells in bulk mode
+ * Save changes to the current cell
  */
 function saveCellChanges() {
-    const isBulkMode = $('#enable-bulk-selection').is(':checked');
-    const replaceExisting = $('#replace-existing-data').is(':checked');
+    const { day, time, caregivers, activities } = templateModule.currentCell;
     
-    if (isBulkMode) {
-        // Get selected days and times
-        const selectedDays = $('.day-checkbox:checked').map(function() {
-            return $(this).val();
-        }).get();
-        
-        const selectedTimes = $('.time-checkbox:checked').map(function() {
-            return $(this).val();
-        }).get();
-        
-        console.log(`Bulk saving to ${selectedDays.length} days and ${selectedTimes.length} time slots`);
-        
-        // Apply changes to all selected cells
-        selectedDays.forEach(day => {
-            selectedTimes.forEach(time => {
-                if (replaceExisting) {
-                    // Replace existing data
-                    templateModule.currentScheduleData[day][time] = {
-                        caregivers: [...templateModule.currentCellData.caregivers],
-                        activities: [...templateModule.currentCellData.activities]
-                    };
-                } else {
-                    // Merge with existing data
-                    if (!templateModule.currentScheduleData[day]) {
-                        templateModule.currentScheduleData[day] = {};
-                    }
-                    
-                    if (!templateModule.currentScheduleData[day][time]) {
-                        templateModule.currentScheduleData[day][time] = {
-                            caregivers: [],
-                            activities: []
-                        };
-                    }
-                    
-                    // Add caregivers that aren't already in the cell
-                    templateModule.currentCellData.caregivers.forEach(caregiverId => {
-                        if (!templateModule.currentScheduleData[day][time].caregivers.includes(caregiverId)) {
-                            templateModule.currentScheduleData[day][time].caregivers.push(caregiverId);
-                        }
-                    });
-                    
-                    // Add activities that aren't already in the cell
-                    templateModule.currentCellData.activities.forEach(activityId => {
-                        if (!templateModule.currentScheduleData[day][time].activities.includes(activityId)) {
-                            templateModule.currentScheduleData[day][time].activities.push(activityId);
-                        }
-                    });
-                }
-                
-                // Update cell display
-                updateCellDisplay(day, time);
-            });
-        });
-        
-        showNotification(`Updated ${selectedDays.length * selectedTimes.length} cells`, 'success');
+    // Update the schedule data
+    templateModule.currentScheduleData[day][time] = {
+        caregivers: [...caregivers],
+        activities: [...activities]
+    };
+    
+    // Update the cell display
+    const cell = $(`.schedule-cell[data-day="${day}"][data-time="${time}"]`);
+    const hasContent = caregivers.length > 0 || activities.length > 0;
+    
+    if (hasContent) {
+        cell.addClass('has-content').html(createCellContentHtml(templateModule.currentScheduleData[day][time]));
     } else {
-        // Single cell update
-        templateModule.currentScheduleData[templateModule.currentCellDay][templateModule.currentCellTime] = {
-            caregivers: [...templateModule.currentCellData.caregivers],
-            activities: [...templateModule.currentCellData.activities]
-        };
-        
-        // Update cell display
-        updateCellDisplay(templateModule.currentCellDay, templateModule.currentCellTime);
-        
-        showNotification('Cell updated successfully', 'success');
+        cell.removeClass('has-content').empty();
     }
     
     // Close the modal
-    const modal = bootstrap.Modal.getInstance(document.getElementById('editCellModal'));
-    modal.hide();
-}
-
-/**
- * Update the display of a cell in the schedule table
- */
-function updateCellDisplay(day, time) {
-    const cell = $(`.schedule-cell[data-day="${day}"][data-time="${time}"]`);
-    const cellData = templateModule.currentScheduleData[day][time];
+    $('#editCellModal').modal('hide');
     
-    // Clear the cell
-    cell.empty();
-    
-    // If there's data, show a summary
-    if (cellData.caregivers.length > 0 || cellData.activities.length > 0) {
-        cell.html(createCellContentHtml(cellData));
-        cell.addClass('has-content');
-    } else {
-        cell.removeClass('has-content');
-    }
-}
-
-/**
- * Save the entire schedule
- */
-function saveSchedule() {
-    const templateId = $('#schedule-template-id').val();
-    
-    $.ajax({
-        url: `/api/templates/${templateId}/schedule`,
-        type: 'PUT',
-        contentType: 'application/json',
-        data: JSON.stringify(templateModule.currentScheduleData),
-        success: function(response) {
-            showNotification('Schedule saved successfully', 'success');
-            const modal = bootstrap.Modal.getInstance(document.getElementById('scheduleModal'));
-            modal.hide();
-        },
-        error: function(xhr) {
-            showNotification('Failed to save schedule', 'danger');
-            console.error('Error saving schedule:', xhr);
-        }
-    });
+    showNotification('Cell updated successfully', 'success');
 }
 
 // ==========================================
@@ -706,40 +514,61 @@ function saveSchedule() {
 $(document).ready(function() {
     console.log('Templates and calendars module loaded');
     
+    // Load templates
+    loadTemplates();
+    
     // Template buttons
     $('#add-template-btn').on('click', function() {
-        showTemplateModal();
+        editTemplate();
     });
     
     $('#save-template').on('click', function() {
         saveTemplate();
     });
     
+    // Schedule table cell click
+    $(document).on('click', '.schedule-cell', function() {
+        const day = $(this).data('day');
+        const time = $(this).data('time');
+        openCellEditModal(day, time);
+    });
+    
     // Cell editing buttons
     $('#add-caregiver-to-cell').on('click', function() {
         const caregiverId = $('#caregiver-select').val();
-        if (caregiverId) {
-            // Check if caregiver is already assigned
-            if (!templateModule.currentCellData.caregivers.includes(caregiverId)) {
-                templateModule.currentCellData.caregivers.push(caregiverId);
-                updateAssignedCaregiversList();
-            } else {
-                showNotification('This caregiver is already assigned to this time slot', 'warning');
-            }
+        if (caregiverId && !templateModule.currentCell.caregivers.includes(caregiverId)) {
+            templateModule.currentCell.caregivers.push(caregiverId);
+            $.get('/api/caregivers', function(caregivers) {
+                updateAssignedCaregiversList(caregivers);
+            });
         }
     });
     
     $('#add-activity-to-cell').on('click', function() {
         const activityId = $('#activity-select').val();
-        if (activityId) {
-            // Check if activity is already assigned
-            if (!templateModule.currentCellData.activities.includes(activityId)) {
-                templateModule.currentCellData.activities.push(activityId);
-                updateAssignedActivitiesList();
-            } else {
-                showNotification('This activity is already assigned to this time slot', 'warning');
-            }
+        if (activityId && !templateModule.currentCell.activities.includes(activityId)) {
+            templateModule.currentCell.activities.push(activityId);
+            $.get('/api/activities', function(activities) {
+                updateAssignedActivitiesList(activities);
+            });
         }
+    });
+    
+    // Remove buttons (using event delegation)
+    $(document).on('click', '.remove-caregiver', function() {
+        const id = $(this).data('id');
+        templateModule.currentCell.caregivers = templateModule.currentCell.caregivers.filter(cid => cid !== id);
+        $.get('/api/caregivers', function(caregivers) {
+            updateAssignedCaregiversList(caregivers);
+        });
+    });
+    
+    $(document).on('click', '.remove-activity', function() {
+        const id = $(this).data('id');
+        templateModule.currentCell.activities = templateModule.currentCell.activities.filter(aid => aid !== id);
+        $.get('/api/activities', function(activities) {
+            updateAssignedActivitiesList(activities);
+        });
     });
     
     // Category filter change
@@ -757,115 +586,49 @@ $(document).ready(function() {
         saveSchedule();
     });
     
-    // Bulk selection toggle
-    $('#enable-bulk-selection').on('change', function() {
-        if ($(this).is(':checked')) {
-            $('.bulk-selection-options').slideDown();
-        } else {
-            $('.bulk-selection-options').slideUp();
-        }
+    // Template list event delegation
+    $(document).on('click', '.edit-template', function() {
+        const id = $(this).data('id');
+        editTemplate(id);
     });
     
-    // Quick select buttons for days
-    $('#select-all-days').on('click', function() {
-        $('.day-checkbox').prop('checked', true);
+    $(document).on('click', '.delete-template', function() {
+        const id = $(this).data('id');
+        deleteTemplate(id);
     });
     
-    $('#select-weekdays').on('click', function() {
-        $('.day-checkbox').prop('checked', false);
-        $('#day-monday, #day-tuesday, #day-wednesday, #day-thursday, #day-friday').prop('checked', true);
-    });
-    
-    $('#select-weekend').on('click', function() {
-        $('.day-checkbox').prop('checked', false);
-        $('#day-saturday, #day-sunday').prop('checked', true);
-    });
-    
-    // Quick select buttons for time slots
-    $('#select-all-times').on('click', function() {
-        $('.time-checkbox').prop('checked', true);
-    });
-    
-    $('#select-morning').on('click', function() {
-        $('.time-checkbox').prop('checked', false);
-        $('#time-06-08, #time-08-10, #time-10-12').prop('checked', true);
-    });
-    
-    $('#select-afternoon').on('click', function() {
-        $('.time-checkbox').prop('checked', false);
-        $('#time-12-14, #time-14-16, #time-16-18').prop('checked', true);
-    });
-    
-    $('#select-evening').on('click', function() {
-        $('.time-checkbox').prop('checked', false);
-        $('#time-18-20, #time-20-22').prop('checked', true);
-    });
-    
-    $('#select-night').on('click', function() {
-        $('.time-checkbox').prop('checked', false);
-        $('#time-22-24, #time-00-02, #time-02-04, #time-04-06').prop('checked', true);
-    });
-    
-    // Ensure modals are properly disposed when hidden
-    $('#scheduleModal, #editCellModal').on('hidden.bs.modal', function() {
-        // Force the modal to be disposed to prevent issues with subsequent openings
-        const modalInstance = bootstrap.Modal.getInstance(this);
-        if (modalInstance) {
-            modalInstance.dispose();
-        }
+    $(document).on('click', '.edit-schedule', function() {
+        const id = $(this).data('id');
+        editSchedule(id);
     });
 });
 
-// Add this function to help with debugging
-function debugModal(modalId) {
-    const modal = document.getElementById(modalId);
-    console.log(`Modal ${modalId} display:`, window.getComputedStyle(modal).display);
-    console.log(`Modal ${modalId} visibility:`, window.getComputedStyle(modal).visibility);
-    console.log(`Modal ${modalId} opacity:`, window.getComputedStyle(modal).opacity);
-    console.log(`Modal ${modalId} classes:`, modal.className);
-    
-    const backdrop = document.querySelector('.modal-backdrop');
-    if (backdrop) {
-        console.log('Modal backdrop exists:', backdrop);
-        console.log('Modal backdrop classes:', backdrop.className);
-    } else {
-        console.log('No modal backdrop found');
-    }
-}
-
-// Call this in your modal open functions
-// debugModal('scheduleModal'); // in editSchedule
-// debugModal('editCellModal'); // in openCellEditModal 
-
 /**
- * Reset and prepare the edit cell modal
+ * Show a notification message
  */
-function resetEditCellModal() {
-    // Clear all existing data
-    $('#assigned-caregivers-list').empty();
-    $('#assigned-activities-list').empty();
-    $('#caregiver-select').empty().html('<option value="">Select Caregiver</option>');
-    $('#activity-select').empty().html('<option value="">Select Activity</option>');
-    $('#category-select').empty().html('<option value="">All Categories</option>');
+function showNotification(message, type = 'info') {
+    const toast = $(`
+        <div class="toast align-items-center text-white bg-${type} border-0" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body">
+                    ${message}
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+    `);
     
-    // Reset bulk selection
-    $('#enable-bulk-selection').prop('checked', false);
-    $('.bulk-selection-options').hide();
-    $('.day-checkbox, .time-checkbox').prop('checked', false);
-    $('#replace-existing-data').prop('checked', false);
+    $('#toast-container').append(toast);
     
-    // Reset current cell data
-    templateModule.currentCellData = { caregivers: [], activities: [] };
-}
-
-/**
- * Reset and prepare the schedule modal
- */
-function resetScheduleModal() {
-    // Clear the schedule table
-    $('#schedule-table-body').empty();
+    const bsToast = new bootstrap.Toast(toast, {
+        autohide: true,
+        delay: 3000
+    });
     
-    // Reset current schedule data
-    templateModule.currentScheduleData = {};
-    templateModule.currentTemplate = null;
+    bsToast.show();
+    
+    // Remove the toast from the DOM after it's hidden
+    toast.on('hidden.bs.toast', function() {
+        $(this).remove();
+    });
 } 
