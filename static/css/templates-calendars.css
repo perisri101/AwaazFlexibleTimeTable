@@ -1,0 +1,198 @@
+/**
+ * Templates and Calendars Styles
+ * Mobile-friendly implementation
+ */
+
+/* General Styles */
+.no-items-message {
+    text-align: center;
+    padding: 2rem;
+    color: #6c757d;
+    font-style: italic;
+}
+
+/* Templates List */
+.templates-list,
+.calendars-list {
+    margin-top: 1rem;
+}
+
+.template-item,
+.calendar-item {
+    transition: background-color 0.2s;
+}
+
+.template-item:hover,
+.calendar-item:hover {
+    background-color: rgba(0, 123, 255, 0.05);
+}
+
+.template-actions,
+.calendar-actions {
+    white-space: nowrap;
+}
+
+.template-actions button,
+.calendar-actions button {
+    margin-left: 0.25rem;
+}
+
+/* Form Styles */
+.form-view {
+    display: none;
+}
+
+/* Schedule Editor */
+.schedule-table {
+    overflow-x: auto;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    margin: 1rem 0;
+}
+
+.schedule-row {
+    display: flex;
+    width: 100%;
+    min-width: 600px; /* Ensures horizontal scrolling on small screens */
+}
+
+.schedule-cell {
+    flex: 1;
+    min-width: 70px;
+    border: 1px solid #dee2e6;
+    padding: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    position: relative;
+}
+
+.time-cell {
+    min-width: 80px;
+    background-color: #f8f9fa;
+    font-weight: bold;
+}
+
+.day-cell {
+    font-weight: bold;
+    background-color: #e9ecef;
+}
+
+.header-row .schedule-cell {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background-color: #e9ecef;
+}
+
+.day-slot {
+    cursor: pointer;
+    height: 60px;
+    transition: background-color 0.2s;
+}
+
+.day-slot:hover {
+    background-color: rgba(0, 123, 255, 0.1);
+}
+
+.day-slot.has-content {
+    background-color: rgba(40, 167, 69, 0.1);
+}
+
+.day-slot.has-content:hover {
+    background-color: rgba(40, 167, 69, 0.2);
+}
+
+.cell-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+}
+
+.caregivers-count,
+.activities-count {
+    margin: 0.1rem 0;
+    font-size: 0.8rem;
+}
+
+/* Cell Editor */
+.assigned-lists {
+    margin-top: 1rem;
+}
+
+.assigned-list {
+    margin-bottom: 1rem;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.assigned-list-title {
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+}
+
+/* Back Buttons */
+.back-button {
+    margin-right: 1rem;
+}
+
+/* Mobile Responsive Adjustments */
+@media (max-width: 768px) {
+    .template-actions button,
+    .calendar-actions button {
+        padding: 0.2rem 0.4rem;
+        font-size: 0.8rem;
+    }
+    
+    .schedule-table {
+        font-size: 0.9rem;
+    }
+    
+    .schedule-cell {
+        padding: 0.3rem;
+        min-width: 60px;
+    }
+    
+    .time-cell {
+        min-width: 70px;
+    }
+    
+    .day-slot {
+        height: 50px;
+    }
+    
+    .caregivers-count,
+    .activities-count {
+        font-size: 0.7rem;
+    }
+}
+
+/* Landscape Mode - more horizontal space */
+@media (max-width: 768px) and (orientation: landscape) {
+    .schedule-row {
+        min-width: 700px;
+    }
+    
+    .schedule-cell {
+        min-width: 80px;
+    }
+}
+
+/* Tiny Screens */
+@media (max-width: 380px) {
+    .template-actions,
+    .calendar-actions {
+        display: flex;
+        margin-top: 0.5rem;
+    }
+    
+    .template-item .d-flex,
+    .calendar-item .d-flex {
+        flex-direction: column;
+    }
+} 

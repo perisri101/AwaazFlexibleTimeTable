@@ -2759,6 +2759,11 @@ def create_empty_schedule_template():
     
     return schedule
 
+@app.route('/templates/templates-calendars.html')
+def templates_calendars_html():
+    """Serve the templates-calendars.html file."""
+    return render_template('templates-calendars.html')
+
 if __name__ == '__main__':
     # Use environment variables for host and port if available
     port = int(os.environ.get('PORT', 8000))

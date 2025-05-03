@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Templates and Calendars</title>
+</head>
+<body>
+    <!-- Templates Section -->
+    <div id="templates-content" class="templates-container">
+        <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+            <h1 class="h2">Templates</h1>
+            <button id="add-template-btn" class="btn btn-primary">
+                <i class="fa-solid fa-plus"></i> Add Template
+            </button>
+        </div>
+
+        <!-- Templates List View -->
+        <div id="templates-list-view">
+            <div class="templates-list" id="templates-list-container">
+                <!-- Templates will be loaded here dynamically -->
+            </div>
+            <div id="no-templates-message" class="no-items-message">
+                <p>No templates available. Create your first template to get started.</p>
+            </div>
+        </div>
+
+        <!-- Template Form View (Add/Edit) -->
+        <div id="template-form-view" class="form-view" style="display: none;">
+            <button id="back-to-templates-btn" class="btn btn-outline-secondary back-button mb-3">
+                <i class="fa-solid fa-arrow-left"></i> Back to Templates
+            </button>
+            
+            <h3 id="template-form-title">Add New Template</h3>
+            
+            <form id="template-form" class="mb-4">
+                <input type="hidden" id="template-id" name="id">
+                
+                <div class="mb-3">
+                    <label for="template-name" class="form-label">Template Name</label>
+                    <input type="text" class="form-control" id="template-name" name="name" required>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="template-description" class="form-label">Description</label>
+                    <textarea class="form-control" id="template-description" name="description" rows="3"></textarea>
+                </div>
+                
+                <div class="d-flex justify-content-between">
+                    <button type="button" id="cancel-template-btn" class="btn btn-secondary">Cancel</button>
+                    <button type="button" id="save-template-btn" class="btn btn-primary">Save Template</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Schedule Editor View -->
+        <div id="schedule-editor-view" class="schedule-editor" style="display: none;">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <button id="back-from-schedule-btn" class="btn btn-outline-secondary back-button">
+                    <i class="fa-solid fa-arrow-left"></i> Back to Templates
+                </button>
+                <h3 id="schedule-editor-title">Edit Schedule</h3>
+                <button id="save-schedule-btn" class="btn btn-primary">
+                    <i class="fa-solid fa-save"></i> Save Schedule
+                </button>
+            </div>
+            
+            <div class="table-responsive">
+                <table class="table table-bordered schedule-table" id="schedule-table">
+                    <thead>
+                        <tr class="header-row">
+                            <th class="time-cell">Time</th>
+                            <th class="day-cell">Monday</th>
+                            <th class="day-cell">Tuesday</th>
+                            <th class="day-cell">Wednesday</th>
+                            <th class="day-cell">Thursday</th>
+                            <th class="day-cell">Friday</th>
+                            <th class="day-cell">Saturday</th>
+                            <th class="day-cell">Sunday</th>
+                        </tr>
+                    </thead>
+                    <tbody id="schedule-table-body">
+                        <!-- Time slots will be added here dynamically -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Cell Editor View -->
+        <div id="cell-editor-view" class="cell-editor" style="display: none;">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <button id="back-from-cell-btn" class="btn btn-outline-secondary back-button">
+                    <i class="fa-solid fa-arrow-left"></i> Back to Schedule
+                </button>
+                <h3 id="cell-editor-title">Edit Cell</h3>
+                <button id="save-cell-btn" class="btn btn-primary">
+                    <i class="fa-solid fa-save"></i> Save Cell
+                </button>
+            </div>
+            
+            <div class="mb-3">
+                <h4 id="cell-day-time-label">Monday, 08:00-10:00</h4>
+            </div>
+            
+            <div class="row">
+                <!-- Caregivers Section -->
+                <div class="col-md-6 mb-3">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Caregivers</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <select id="select-caregiver" class="form-select">
+                                    <option value="">Select Caregiver</option>
+                                    <!-- Caregivers will be populated dynamically -->
+                                </select>
+                                <button id="add-caregiver-btn" class="btn btn-primary mt-2">Add</button>
+                            </div>
+                            
+                            <div class="assigned-lists">
+                                <h6>Assigned Caregivers</h6>
+                                <div id="assigned-caregivers" class="list-group">
+                                    <div class="no-items-message">No caregivers assigned</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Activities Section -->
+                <div class="col-md-6 mb-3">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Activities</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label for="category-filter" class="form-label">Filter by Category</label>
+                                <select id="category-filter" class="form-select mb-2">
+                                    <option value="">All Categories</option>
+                                    <!-- Categories will be populated dynamically -->
+                                </select>
+                                
+                                <select id="select-activity" class="form-select">
+                                    <option value="">Select Activity</option>
+                                    <!-- Activities will be populated dynamically -->
+                                </select>
+                                <button id="add-activity-btn" class="btn btn-primary mt-2">Add</button>
+                            </div>
+                            
+                            <div class="assigned-lists">
+                                <h6>Assigned Activities</h6>
+                                <div id="assigned-activities" class="list-group">
+                                    <div class="no-items-message">No activities assigned</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="d-flex justify-content-between">
+                <button id="cancel-cell-edit-btn" class="btn btn-secondary">Cancel</button>
+                <button id="save-cell-changes-btn" class="btn btn-primary">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Calendars Section -->
+    <div id="calendars-content" class="calendars-container">
+        <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+            <h1 class="h2">Calendars</h1>
+            <button id="add-calendar-btn" class="btn btn-primary">
+                <i class="fa-solid fa-plus"></i> Add Calendar
+            </button>
+        </div>
+
+        <!-- Calendars List View -->
+        <div id="calendars-list-view">
+            <div class="templates-list" id="calendars-list-container">
+                <!-- Calendars will be loaded here dynamically -->
+            </div>
+            <div id="no-calendars-message" class="no-items-message">
+                <p>No calendars available. Create your first calendar to get started.</p>
+            </div>
+        </div>
+
+        <!-- Calendar Form View (Add/Edit) -->
+        <div id="calendar-form-view" class="form-view" style="display: none;">
+            <button id="back-to-calendars-btn" class="btn btn-outline-secondary back-button mb-3">
+                <i class="fa-solid fa-arrow-left"></i> Back to Calendars
+            </button>
+            
+            <h3 id="calendar-form-title">Add New Calendar</h3>
+            
+            <form id="calendar-form" class="mb-4">
+                <input type="hidden" id="calendar-id" name="id">
+                
+                <div class="mb-3">
+                    <label for="calendar-name" class="form-label">Calendar Name</label>
+                    <input type="text" class="form-control" id="calendar-name" name="name" required>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="calendar-description" class="form-label">Description</label>
+                    <textarea class="form-control" id="calendar-description" name="description" rows="3"></textarea>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="calendar-template" class="form-label">Based on Template</label>
+                    <select class="form-select" id="calendar-template" name="template_id">
+                        <option value="">None</option>
+                        <!-- Templates will be populated dynamically -->
+                    </select>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="calendar-start-date" class="form-label">Start Date</label>
+                    <input type="date" class="form-control" id="calendar-start-date" name="start_date" required>
+                </div>
+                
+                <div class="d-flex justify-content-between">
+                    <button type="button" id="cancel-calendar-btn" class="btn btn-secondary">Cancel</button>
+                    <button type="button" id="save-calendar-btn" class="btn btn-primary">Save Calendar</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Calendar View -->
+        <div id="calendar-view" class="calendar-view" style="display: none;">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <button id="back-from-calendar-view-btn" class="btn btn-outline-secondary back-button">
+                    <i class="fa-solid fa-arrow-left"></i> Back to Calendars
+                </button>
+                <h3 id="calendar-view-title">Calendar View</h3>
+                <div>
+                    <button id="print-calendar-btn" class="btn btn-outline-secondary">
+                        <i class="fa-solid fa-print"></i> Print
+                    </button>
+                    <button id="edit-calendar-schedule-btn" class="btn btn-primary">
+                        <i class="fa-solid fa-edit"></i> Edit
+                    </button>
+                </div>
+            </div>
+            
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <button id="prev-week-btn" class="btn btn-outline-secondary">
+                    <i class="fas fa-chevron-left"></i> Previous Week
+                </button>
+                <div class="text-center">
+                    <span id="week-display" class="badge bg-info"></span>
+                </div>
+                <button id="next-week-btn" class="btn btn-outline-secondary">
+                    Next Week <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+            
+            <div class="table-responsive">
+                <table id="calendar-view-table" class="table table-bordered">
+                    <thead>
+                        <tr>
+                            <th scope="col" style="width: 80px;">Time</th>
+                            <th scope="col">Monday</th>
+                            <th scope="col">Tuesday</th>
+                            <th scope="col">Wednesday</th>
+                            <th scope="col">Thursday</th>
+                            <th scope="col">Friday</th>
+                            <th scope="col">Saturday</th>
+                            <th scope="col">Sunday</th>
+                        </tr>
+                        <tr id="calendar-dates-header">
+                            <th></th>
+                            <!-- Date headers will be dynamically added here -->
+                        </tr>
+                    </thead>
+                    <tbody id="calendar-table-body">
+                        <!-- Schedule rows will be dynamically added here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</body>
+</html> 

@@ -10,6 +10,8 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <!-- Custom CSS -->
     <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    <!-- Include the templates-calendars CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/templates-calendars.css') }}">
 </head>
 <body>
     <div class="container-fluid">
@@ -224,28 +226,12 @@
 
                     <!-- Templates Section -->
                     <div id="templates" class="content-section">
-                        <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-                            <h1 class="h2">Templates</h1>
-                            <button id="add-template-btn" class="btn btn-primary">
-                                <i class="fa-solid fa-plus"></i> Add Template
-                            </button>
-                        </div>
-                        <div class="row" id="templates-list">
-                            <!-- Templates will be loaded here -->
-                        </div>
+                        <!-- Templates content will be loaded from templates-calendars.html -->
                     </div>
 
                     <!-- Calendars Section -->
                     <div id="calendars" class="content-section">
-                        <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-                            <h1 class="h2">Calendars</h1>
-                            <button id="add-calendar-btn" class="btn btn-primary">
-                                <i class="fa-solid fa-plus"></i> Add Calendar
-                            </button>
-                        </div>
-                        <div id="calendarsContainer">
-                            <!-- Calendars will be loaded here -->
-                        </div>
+                        <!-- Calendars content will be loaded from templates-calendars.html -->
                     </div>
 
                     <!-- Backups and Git Section -->
@@ -817,35 +803,6 @@
         </div>
     </div>
 
-    <!-- Modal for Template Form -->
-    <div class="modal fade" id="templateModal" tabindex="-1" aria-labelledby="templateModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="templateModalLabel">Add Template</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <form id="template-form">
-                        <input type="hidden" id="template-id">
-                        <div class="mb-3">
-                            <label for="template-name" class="form-label">Name</label>
-                            <input type="text" class="form-control" id="template-name" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="template-description" class="form-label">Description</label>
-                            <textarea class="form-control" id="template-description" rows="3"></textarea>
-                        </div>
-                    </form>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" id="save-template">Save</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Modal for Calendar Form -->
     <div class="modal fade" id="calendarModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog">
@@ -1275,6 +1232,6 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <!-- Custom JavaScript -->
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/templates-calendars.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/new-templates-calendars.js') }}"></script>
 </body>
 </html> 
