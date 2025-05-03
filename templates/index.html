@@ -274,6 +274,12 @@
                                 <button id="save-to-git-btn" class="btn btn-success">
                                     <i class="fas fa-save"></i> Save to Git
                                 </button>
+                                <button id="fix-remote-btn" class="btn btn-warning">
+                                    <i class="fas fa-server"></i> Fix Remote Repository
+                                </button>
+                                <button id="handle-commits-btn" class="btn btn-info">
+                                    <i class="fas fa-code-commit"></i> Handle Pending Commits
+                                </button>
                             </div>
                         </div>
                         
@@ -996,6 +1002,43 @@
                     Operation completed successfully.
                 </div>
                 <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add this modal to the bottom of your HTML file -->
+    <div class="modal fade" id="pendingCommitsModal" tabindex="-1" aria-labelledby="pendingCommitsModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="pendingCommitsModalLabel">Handle Pending Commits</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>You have commits that couldn't be pushed to the remote repository. How would you like to handle them?</p>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="radio" name="commitAction" id="keepCommits" value="keep" checked>
+                        <label class="form-check-label" for="keepCommits">
+                            <strong>Keep commits</strong> - Keep the commits and try to push them later
+                        </label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="radio" name="commitAction" id="backupCommits" value="backup">
+                        <label class="form-check-label" for="backupCommits">
+                            <strong>Backup commits</strong> - Save commits to a backup branch and reset main branch
+                        </label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="radio" name="commitAction" id="discardCommits" value="discard">
+                        <label class="form-check-label" for="discardCommits">
+                            <strong>Discard commits</strong> - Reset to match remote repository (data loss warning!)
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="confirmHandleCommits">Confirm</button>
+                </div>
             </div>
         </div>
     </div>

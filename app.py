@@ -2339,6 +2339,180 @@ def resolve_conflicts_api():
             'error': str(e)
         }), 500
 
+@app.route('/api/git/fix-remote', methods=['POST'])
+def fix_remote_api():
+    """Fix issues with the Git remote repository."""
+    try:
+        # Get repository URL from environment or request
+        data = request.get_json() or {}
+        repo_url = data.get('url') or os.environ.get('GIT_REPOSITORY_URL')
+        
+        if not repo_url:
+            return jsonify({
+                'success': False,
+                'error': "No repository URL provided. Please set GIT_REPOSITORY_URL in environment variables."
+            }), 400
+        
+        # Check if remote exists
+        try:
+            remotes = subprocess.check_output(['git', 'remote']).decode().strip().split('\n')
+            
+            # Remove existing origin if it exists
+            if 'origin' in remotes:
+                subprocess.run(['git', 'remote', 'remove', 'origin'], check=True)
+                app.logger.info("Removed existing origin remote")
+            
+            # Add new origin remote
+            subprocess.run(['git', 'remote', 'add', 'origin', repo_url], check=True)
+            app.logger.info(f"Added new origin remote: {repo_url}")
+            
+            # Verify remote
+            verify_result = subprocess.run(['git', 'remote', '-v'], 
+                                         check=False, capture_output=True, text=True)
+            
+            if verify_result.returncode != 0:
+                return jsonify({
+                    'success': False,
+                    'error': f"Failed to verify remote: {verify_result.stderr}"
+                })
+            
+            # Try to fetch from remote to verify connection
+            fetch_result = subprocess.run(['git', 'fetch', 'origin'], 
+                                        check=False, capture_output=True, text=True, timeout=10)
+            
+            if fetch_result.returncode != 0:
+                # If fetch fails, check if it's an authentication issue
+                if "could not read Username" in fetch_result.stderr:
+                    return jsonify({
+                        'success': True,
+                        'message': "Remote configured but authentication failed. Please use 'Fix Git Credentials' button.",
+                        'warning': "Authentication required",
+                        'error_type': 'auth'
+                    })
+                else:
+                    return jsonify({
+                        'success': False,
+                        'error': f"Remote configured but connection failed: {fetch_result.stderr}",
+                        'error_type': 'connection'
+                    })
+            
+            return jsonify({
+                'success': True,
+                'message': "Git remote repository configured successfully"
+            })
+            
+        except subprocess.CalledProcessError as e:
+            return jsonify({
+                'success': False,
+                'error': f"Error configuring remote: {e.stderr.decode() if e.stderr else str(e)}"
+            })
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/git/handle-pending-commits', methods=['POST'])
+def handle_pending_commits_api():
+    """Handle pending commits that couldn't be pushed."""
+    try:
+        data = request.get_json() or {}
+        action = data.get('action', 'keep')  # 'keep', 'discard', or 'backup'
+        
+        if action not in ['keep', 'discard', 'backup']:
+            return jsonify({
+                'success': False,
+                'error': "Invalid action. Must be 'keep', 'discard', or 'backup'."
+            }), 400
+        
+        # Check if there are unpushed commits
+        try:
+            # Get current branch
+            current_branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).decode().strip()
+            
+            # Check for unpushed commits
+            unpushed_check = subprocess.run(
+                ['git', 'log', 'origin/' + current_branch + '..' + current_branch, '--oneline'],
+                check=False, capture_output=True, text=True
+            )
+            
+            has_unpushed = unpushed_check.returncode == 0 and unpushed_check.stdout.strip()
+            
+            if not has_unpushed:
+                return jsonify({
+                    'success': True,
+                    'message': "No pending commits found"
+                })
+            
+            # Handle based on action
+            if action == 'discard':
+                # Reset to remote
+                reset_result = subprocess.run(
+                    ['git', 'reset', '--hard', 'origin/' + current_branch],
+                    check=False, capture_output=True, text=True
+                )
+                
+                if reset_result.returncode != 0:
+                    return jsonify({
+                        'success': False,
+                        'error': f"Failed to discard commits: {reset_result.stderr}"
+                    })
+                
+                return jsonify({
+                    'success': True,
+                    'message': "Pending commits discarded successfully"
+                })
+                
+            elif action == 'backup':
+                # Create a backup branch
+                backup_branch = f"backup-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+                branch_result = subprocess.run(
+                    ['git', 'branch', backup_branch],
+                    check=False, capture_output=True, text=True
+                )
+                
+                if branch_result.returncode != 0:
+                    return jsonify({
+                        'success': False,
+                        'error': f"Failed to create backup branch: {branch_result.stderr}"
+                    })
+                
+                # Reset to remote
+                reset_result = subprocess.run(
+                    ['git', 'reset', '--hard', 'origin/' + current_branch],
+                    check=False, capture_output=True, text=True
+                )
+                
+                if reset_result.returncode != 0:
+                    return jsonify({
+                        'success': False,
+                        'error': f"Created backup branch '{backup_branch}' but failed to reset: {reset_result.stderr}"
+                    })
+                
+                return jsonify({
+                    'success': True,
+                    'message': f"Pending commits backed up to branch '{backup_branch}' and main branch reset"
+                })
+                
+            else:  # keep
+                return jsonify({
+                    'success': True,
+                    'message': "Pending commits kept. Use 'Fix Remote Repository' to configure the remote and try pushing again."
+                })
+                
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'error': f"Error checking for pending commits: {str(e)}"
+            })
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 if __name__ == '__main__':
     # Use environment variables for host and port if available
     port = int(os.environ.get('PORT', 8000))

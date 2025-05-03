@@ -623,6 +623,135 @@ $(document).ready(function() {
             showNotification('Git status refreshed', 'info');
         });
     });
+
+    // Fix remote repository
+    $(document).on('click', '#fix-remote-btn', function() {
+        // Get the repository URL from the form
+        const repoUrl = $('#env-git-repo-url-input').val();
+        
+        if (!repoUrl) {
+            showNotification('Please enter a repository URL in the settings form first', 'warning');
+            return;
+        }
+        
+        if (confirm(`This will reconfigure your Git remote to use: ${repoUrl}\nContinue?`)) {
+            // Show loading indicator
+            const $btn = $(this);
+            const originalText = $btn.html();
+            $btn.html('<i class="fas fa-spinner fa-spin"></i> Fixing...');
+            $btn.prop('disabled', true);
+            
+            $.ajax({
+                url: '/api/git/fix-remote',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ url: repoUrl }),
+                success: function(response) {
+                    // Reset button
+                    $btn.html(originalText);
+                    $btn.prop('disabled', false);
+                    
+                    if (response.success) {
+                        showNotification(response.message, 'success');
+                        
+                        // If there's a warning, show it
+                        if (response.warning) {
+                            showNotification('Warning: ' + response.warning, 'warning');
+                            
+                            // If it's an auth issue, suggest fixing credentials
+                            if (response.error_type === 'auth' && 
+                                confirm('Would you like to fix the authentication issue now?')) {
+                                $('#fix-credentials-btn').click();
+                            }
+                        }
+                        
+                        // Save to environment variables
+                        const formData = {
+                            GIT_REPOSITORY_URL: repoUrl
+                        };
+                        
+                        $.ajax({
+                            url: '/api/env/variables',
+                            type: 'POST',
+                            contentType: 'application/json',
+                            data: JSON.stringify(formData)
+                        });
+                        
+                        // Refresh Git test results
+                        setTimeout(function() {
+                            $('#test-git-btn').click();
+                        }, 1000);
+                    } else {
+                        showNotification('Error: ' + response.error, 'danger');
+                    }
+                },
+                error: function(xhr) {
+                    // Reset button
+                    $btn.html(originalText);
+                    $btn.prop('disabled', false);
+                    
+                    let errorMsg = 'Error fixing remote repository';
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        if (response.error) {
+                            errorMsg += ': ' + response.error;
+                        }
+                    } catch (e) {
+                        errorMsg += ': ' + xhr.statusText;
+                    }
+                    showNotification(errorMsg, 'danger');
+                }
+            });
+        }
+    });
+
+    // Handle pending commits
+    $(document).on('click', '#handle-commits-btn', function() {
+        // Show the modal
+        $('#pendingCommitsModal').modal('show');
+    });
+
+    // Confirm handling of pending commits
+    $(document).on('click', '#confirmHandleCommits', function() {
+        const action = $('input[name="commitAction"]:checked').val();
+        
+        // Close the modal
+        $('#pendingCommitsModal').modal('hide');
+        
+        // Show loading notification
+        showNotification('Processing pending commits...', 'info');
+        
+        $.ajax({
+            url: '/api/git/handle-pending-commits',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ action: action }),
+            success: function(response) {
+                if (response.success) {
+                    showNotification(response.message, 'success');
+                    
+                    // Refresh Git test results
+                    setTimeout(function() {
+                        $('#test-git-btn').click();
+                    }, 1000);
+                } else {
+                    showNotification('Error: ' + response.error, 'danger');
+                }
+            },
+            error: function(xhr) {
+                let errorMsg = 'Error handling pending commits';
+                try {
+                    const response = JSON.parse(xhr.responseText);
+                    if (response.error) {
+                        errorMsg += ': ' + response.error;
+                    }
+                } catch (e) {
+                    errorMsg += ': ' + xhr.statusText;
+                }
+                showNotification(errorMsg, 'danger');
+            }
+        });
+    });
 });
 
 // Initialize application
