@@ -473,6 +473,156 @@ $(document).ready(function() {
             });
         }
     });
+
+    // Save changes to Git with transaction safety
+    $(document).on('click', '#save-to-git-btn', function() {
+        const message = prompt('Enter a commit message for your changes:', 'Update from web interface');
+        if (!message) return; // User cancelled
+        
+        // Show loading indicator
+        const $btn = $(this);
+        const originalText = $btn.html();
+        $btn.html('<i class="fas fa-spinner fa-spin"></i> Saving...');
+        $btn.prop('disabled', true);
+        
+        showNotification('Saving changes to Git...', 'info');
+        
+        $.ajax({
+            url: '/api/git/save-changes',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ message: message }),
+            success: function(response) {
+                // Reset button
+                $btn.html(originalText);
+                $btn.prop('disabled', false);
+                
+                if (response.success) {
+                    showNotification(response.message, 'success');
+                    
+                    // If there's a warning, show it
+                    if (response.warning) {
+                        showNotification('Warning: ' + response.warning, 'warning');
+                    }
+                    
+                    // Refresh Git status
+                    refreshGitStatus();
+                    
+                    // Refresh Git test results if they're visible
+                    if ($('#git-test-results').is(':visible')) {
+                        setTimeout(function() {
+                            $('#test-git-btn').click();
+                        }, 1000);
+                    }
+                } else {
+                    // Handle specific error types
+                    if (response.error_type === 'auth') {
+                        showNotification(response.error, 'danger');
+                        // Suggest fix
+                        if (confirm('Would you like to fix the authentication issue now?')) {
+                            $('#fix-credentials-btn').click();
+                        }
+                    } else if (response.error_type === 'rejected') {
+                        showNotification(response.error, 'danger');
+                        // Suggest fix
+                        if (confirm('Would you like to fix the rejected push issue now?')) {
+                            $('#fix-rejected-push-btn').click();
+                        }
+                    } else if (response.error_type === 'locked') {
+                        showNotification(response.error, 'warning');
+                        // Set a timer to try again
+                        setTimeout(function() {
+                            if (confirm('Another Git operation was in progress. Would you like to try saving again?')) {
+                                $('#save-to-git-btn').click();
+                            }
+                        }, 5000);
+                    } else {
+                        showNotification('Error: ' + response.error, 'danger');
+                    }
+                }
+            },
+            error: function(xhr) {
+                // Reset button
+                $btn.html(originalText);
+                $btn.prop('disabled', false);
+                
+                let errorMsg = 'Error saving to Git';
+                try {
+                    const response = JSON.parse(xhr.responseText);
+                    if (response.error) {
+                        errorMsg += ': ' + response.error;
+                    }
+                } catch (e) {
+                    errorMsg += ': ' + xhr.statusText;
+                }
+                showNotification(errorMsg, 'danger');
+            }
+        });
+    });
+
+    // Function to refresh Git status
+    function refreshGitStatus() {
+        $.ajax({
+            url: '/api/git/status',
+            type: 'GET',
+            success: function(response) {
+                if (response.success) {
+                    // Update branch info
+                    $('#git-branch').text(response.branch);
+                    
+                    // Update changes count
+                    $('#git-changes-count').text(response.changes.length);
+                    
+                    // Update changes list
+                    const $changesList = $('#git-changes-list');
+                    $changesList.empty();
+                    
+                    if (response.changes.length === 0) {
+                        $changesList.append('<li class="list-group-item">No pending changes</li>');
+                    } else {
+                        response.changes.forEach(function(change) {
+                            const statusClass = getStatusClass(change.status);
+                            $changesList.append(`
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span>${change.file}</span>
+                                    <span class="badge ${statusClass}">${change.status}</span>
+                                </li>
+                            `);
+                        });
+                    }
+                } else {
+                    showNotification('Error refreshing Git status: ' + response.error, 'warning');
+                }
+            },
+            error: function() {
+                showNotification('Failed to refresh Git status', 'warning');
+            }
+        });
+    }
+
+    // Helper function to get badge class for Git status
+    function getStatusClass(status) {
+        switch(status.charAt(0)) {
+            case 'M': return 'bg-warning';  // Modified
+            case 'A': return 'bg-success';  // Added
+            case 'D': return 'bg-danger';   // Deleted
+            case 'R': return 'bg-info';     // Renamed
+            case '?': return 'bg-secondary'; // Untracked
+            default: return 'bg-primary';
+        }
+    }
+
+    // Refresh Git status on page load and when refresh button is clicked
+    $(document).ready(function() {
+        // Initial load of Git status
+        refreshGitStatus();
+        
+        // Refresh button
+        $(document).on('click', '#refresh-git-status-btn', function() {
+            refreshGitStatus();
+            showNotification('Git status refreshed', 'info');
+        });
+    });
 });
 
 // Initialize application

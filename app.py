@@ -7,6 +7,7 @@ import shutil
 import subprocess
 from dotenv import load_dotenv
 import sys
+import time
 
 # Load environment variables from .env file if it exists
 load_dotenv()
@@ -770,65 +771,49 @@ def restore_backup(backup_id):
 # Modified Git status route for production
 @app.route('/api/git/status', methods=['GET'])
 def git_status_api():
-    """Get the current Git status."""
+    """Get current Git status information."""
     try:
         # Get current branch
         try:
-            branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).decode().strip()
+            current_branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).decode().strip()
         except:
-            branch = "Unknown"
+            current_branch = 'unknown'
         
-        # Get status
+        # Get status of files
+        status_output = subprocess.check_output(['git', 'status', '--porcelain']).decode().strip()
+        
+        changes = []
+        if status_output:
+            for line in status_output.split('\n'):
+                if line.strip():
+                    status = line[:2].strip()
+                    file_path = line[3:].strip()
+                    changes.append({
+                        'status': status,
+                        'file': file_path
+                    })
+        
+        # Get last commit info
         try:
-            status_output = subprocess.check_output(['git', 'status', '--porcelain']).decode().strip()
-            changes = [line for line in status_output.split('\n') if line.strip()]
-            has_changes = len(changes) > 0
+            last_commit = subprocess.check_output(
+                ['git', 'log', '-1', '--pretty=format:%h|%an|%ar|%s'], 
+                stderr=subprocess.DEVNULL
+            ).decode().strip().split('|')
+            
+            commit_info = {
+                'hash': last_commit[0],
+                'author': last_commit[1],
+                'time': last_commit[2],
+                'message': last_commit[3]
+            }
         except:
-            changes = []
-            has_changes = False
-        
-        # Get remote status
-        try:
-            remote_output = subprocess.check_output(['git', 'remote', '-v']).decode().strip()
-            remotes = [line for line in remote_output.split('\n') if line.strip()]
-            has_remote = len(remotes) > 0
-        except:
-            remotes = []
-            has_remote = False
-        
-        # Check if .git directory exists
-        is_git_repo = os.path.exists('.git')
-        
-        # Check if we can access the remote
-        can_access_remote = False
-        remote_error = None
-        if has_remote:
-            try:
-                result = subprocess.run(['git', 'ls-remote', '--heads', 'origin'], 
-                                      check=False, capture_output=True, text=True, timeout=5)
-                can_access_remote = result.returncode == 0
-                if not can_access_remote:
-                    remote_error = result.stderr.strip()
-            except Exception as e:
-                remote_error = str(e)
+            commit_info = None
         
         return jsonify({
-            'is_git_repo': is_git_repo,
-            'branch': branch,
+            'success': True,
+            'branch': current_branch,
             'changes': changes,
-            'has_changes': has_changes,
-            'remotes': remotes,
-            'has_remote': has_remote,
-            'can_access_remote': can_access_remote,
-            'remote_error': remote_error,
-            'environment': {
-                'GIT_AUTO_PUSH': os.environ.get('GIT_AUTO_PUSH', 'Not set'),
-                'ALLOW_GIT_IN_PRODUCTION': os.environ.get('ALLOW_GIT_IN_PRODUCTION', 'Not set'),
-                'GIT_USER_NAME': os.environ.get('GIT_USER_NAME', 'Not set'),
-                'GIT_USER_EMAIL': os.environ.get('GIT_USER_EMAIL', 'Not set'),
-                'GITHUB_TOKEN': 'Set' if os.environ.get('GITHUB_TOKEN') else 'Not set',
-                'GIT_REPOSITORY_URL': os.environ.get('GIT_REPOSITORY_URL', 'Not set')
-            }
+            'last_commit': commit_info
         })
     except Exception as e:
         return jsonify({
@@ -2150,6 +2135,203 @@ def fix_rejected_push():
         return jsonify({
             'success': False,
             'error': "Failed to integrate remote changes. Please manually resolve conflicts."
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/git/save-changes', methods=['POST'])
+def save_changes_api():
+    """Save changes to Git with proper error handling and transaction safety."""
+    # Create a lock file to prevent concurrent Git operations
+    lock_file = os.path.join(os.getcwd(), '.git', 'awaaz_lock')
+    
+    try:
+        # Check if another operation is in progress
+        if os.path.exists(lock_file):
+            # Check if the lock is stale (older than 5 minutes)
+            lock_time = os.path.getmtime(lock_file)
+            if time.time() - lock_time < 300:  # 5 minutes
+                return jsonify({
+                    'success': False,
+                    'error': "Another Git operation is in progress. Please try again in a few moments.",
+                    'error_type': 'locked'
+                })
+            else:
+                # Remove stale lock
+                os.remove(lock_file)
+        
+        # Create lock file
+        with open(lock_file, 'w') as f:
+            f.write(f"Locked by process at {datetime.now().isoformat()}")
+        
+        data = request.get_json()
+        commit_message = data.get('message', 'Update from web interface')
+        
+        # Step 1: Fetch latest changes to avoid conflicts
+        try:
+            fetch_result = subprocess.run(['git', 'fetch', 'origin'], 
+                                        check=False, capture_output=True, text=True, timeout=10)
+        except Exception as e:
+            app.logger.warning(f"Fetch failed: {str(e)}")
+        
+        # Step 2: Check Git status
+        status_result = subprocess.run(['git', 'status', '--porcelain'], 
+                                     check=False, capture_output=True, text=True)
+        
+        if not status_result.stdout.strip():
+            os.remove(lock_file)  # Release lock
+            return jsonify({
+                'success': True,
+                'message': "No changes to save",
+                'status': 'no_changes'
+            })
+        
+        # Step 3: Stage changes
+        try:
+            subprocess.run(['git', 'add', '.'], check=True)
+        except subprocess.CalledProcessError as e:
+            os.remove(lock_file)  # Release lock
+            return jsonify({
+                'success': False,
+                'error': f"Failed to stage changes: {e.stderr if e.stderr else str(e)}"
+            })
+        
+        # Step 4: Commit changes
+        try:
+            commit_result = subprocess.run(['git', 'commit', '-m', commit_message], 
+                                         check=False, capture_output=True, text=True)
+            
+            if commit_result.returncode != 0 and "nothing to commit" not in commit_result.stderr:
+                os.remove(lock_file)  # Release lock
+                return jsonify({
+                    'success': False,
+                    'error': f"Failed to commit changes: {commit_result.stderr}"
+                })
+        except Exception as e:
+            os.remove(lock_file)  # Release lock
+            return jsonify({
+                'success': False,
+                'error': f"Error during commit: {str(e)}"
+            })
+        
+        # Step 5: Try to push changes
+        try:
+            # First try to pull with rebase to integrate any remote changes
+            try:
+                current_branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).decode().strip()
+            except:
+                current_branch = 'main'  # Default to main if we can't determine current branch
+                
+            pull_result = subprocess.run(['git', 'pull', '--rebase', 'origin', current_branch], 
+                                       check=False, capture_output=True, text=True, timeout=10)
+            
+            # Now push
+            push_result = subprocess.run(['git', 'push', 'origin', current_branch], 
+                                       check=False, capture_output=True, text=True)
+            
+            # Handle push errors
+            if push_result.returncode != 0:
+                # Check for common errors
+                if "could not read Username" in push_result.stderr:
+                    # Authentication issue
+                    os.remove(lock_file)  # Release lock
+                    return jsonify({
+                        'success': False,
+                        'error': "Authentication failed. Please use 'Fix Git Credentials' button.",
+                        'error_type': 'auth'
+                    })
+                elif "Updates were rejected" in push_result.stderr:
+                    # Remote has changes we don't have
+                    os.remove(lock_file)  # Release lock
+                    return jsonify({
+                        'success': False,
+                        'error': "Remote has changes you don't have. Please use 'Pull & Reset' or 'Fix Rejected Push' button.",
+                        'error_type': 'rejected'
+                    })
+                else:
+                    # Other push error
+                    os.remove(lock_file)  # Release lock
+                    return jsonify({
+                        'success': False,
+                        'error': f"Push failed: {push_result.stderr}",
+                        'error_type': 'push'
+                    })
+            
+            # Success
+            os.remove(lock_file)  # Release lock
+            return jsonify({
+                'success': True,
+                'message': "Changes saved and pushed to remote repository",
+                'status': 'pushed'
+            })
+            
+        except Exception as e:
+            # Push failed but commit succeeded
+            os.remove(lock_file)  # Release lock
+            return jsonify({
+                'success': True,
+                'message': f"Changes committed locally but push failed: {str(e)}",
+                'status': 'committed',
+                'warning': str(e)
+            })
+            
+    except Exception as e:
+        # Make sure to remove lock file in case of any error
+        try:
+            if os.path.exists(lock_file):
+                os.remove(lock_file)
+        except:
+            pass
+            
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/git/resolve-conflicts', methods=['POST'])
+def resolve_conflicts_api():
+    """Resolve Git conflicts by choosing local or remote version."""
+    try:
+        data = request.get_json()
+        strategy = data.get('strategy', 'ours')  # 'ours' or 'theirs'
+        
+        if strategy not in ['ours', 'theirs']:
+            return jsonify({
+                'success': False,
+                'error': "Invalid strategy. Must be 'ours' or 'theirs'."
+            }), 400
+        
+        # Check if there are conflicts
+        status_output = subprocess.check_output(['git', 'status']).decode()
+        if 'You have unmerged paths' not in status_output and 'fix conflicts' not in status_output:
+            return jsonify({
+                'success': False,
+                'error': "No conflicts detected."
+            })
+        
+        # Resolve conflicts using the specified strategy
+        if strategy == 'ours':
+            subprocess.run(['git', 'checkout', '--ours', '.'], check=True)
+        else:
+            subprocess.run(['git', 'checkout', '--theirs', '.'], check=True)
+        
+        # Stage the resolved files
+        subprocess.run(['git', 'add', '.'], check=True)
+        
+        # Commit the resolution
+        commit_result = subprocess.run(
+            ['git', 'commit', '-m', f"Resolve conflicts using {strategy} strategy"],
+            check=False,
+            capture_output=True,
+            text=True
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': f"Conflicts resolved using {strategy} strategy"
         })
     except Exception as e:
         return jsonify({
