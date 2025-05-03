@@ -80,50 +80,111 @@ $(document).ready(function() {
     
     // Git connectivity test
     $(document).on('click', '#test-git-btn', function() {
-        // Show the results section with loading indicators
+        // Show the results section
         $('#git-test-results').show();
         
-        // Set all fields to loading state
-        $('#git-user-name, #git-user-email, #git-repo-url, #git-branch').text('Loading...');
-        $('#repo-access-status, #push-access-status').html('<div class="spinner-border spinner-border-sm text-primary" role="status"><span class="visually-hidden">Loading...</span></div> Testing...');
-        $('#env-git-auto-push, #env-allow-git, #env-git-user-name, #env-git-user-email, #env-github-token, #env-git-repo-url').text('Loading...');
+        // Show loading indicators
+        $('#git-user-name, #git-user-email, #git-repo-url, #git-branch, #git-remote-access, #git-changes')
+            .html('<i class="fas fa-spinner fa-spin"></i> Loading...');
         
-        // Make the API call
         $.ajax({
-            url: '/api/git/test-connection',
-            type: 'POST',
+            url: '/api/git/test',
+            type: 'GET',
             success: function(response) {
-                if (response.success) {
-                    // Update Git configuration
-                    $('#git-user-name').text(response.git_config['user.name']);
-                    $('#git-user-email').text(response.git_config['user.email']);
-                    $('#git-repo-url').text(response.git_config['remote.origin.url']);
-                    $('#git-branch').text(response.current_branch);
-                    
-                    // Update repository access status
-                    if (response.repository_access.success) {
-                        $('#repo-access-status').html('<span class="text-success"><i class="fas fa-check-circle"></i> Success</span>');
+                // Update the UI with the results
+                $('#git-user-name').text(response.environment.GIT_USER_NAME);
+                $('#git-user-email').text(response.environment.GIT_USER_EMAIL);
+                $('#git-repo-url').text(response.environment.GIT_REPOSITORY_URL);
+                $('#git-branch').text(response.branch);
+                
+                // Remote access status
+                if (response.has_remote) {
+                    if (response.can_access_remote) {
+                        $('#git-remote-access').html('<span class="text-success"><i class="fas fa-check-circle"></i> Connected</span>');
                     } else {
-                        $('#repo-access-status').html('<span class="text-danger"><i class="fas fa-times-circle"></i> Failed</span><br><small class="text-muted">' + response.repository_access.error + '</small>');
+                        $('#git-remote-access').html(`<span class="text-danger"><i class="fas fa-times-circle"></i> Error: ${response.remote_error || 'Unknown error'}</span>`);
                     }
-                    
-                    // Update push access status
-                    if (response.push_access.success) {
-                        $('#push-access-status').html('<span class="text-success"><i class="fas fa-check-circle"></i> Success</span><br><small class="text-muted">Test file: ' + response.push_access.test_file + '</small>');
-                    } else {
-                        $('#push-access-status').html('<span class="text-danger"><i class="fas fa-times-circle"></i> Failed</span><br><small class="text-muted">' + response.push_access.error + '</small>');
-                    }
-                    
-                    // Update environment variables
-                    $('#env-git-auto-push').text(response.environment.GIT_AUTO_PUSH);
-                    $('#env-allow-git').text(response.environment.ALLOW_GIT_IN_PRODUCTION);
-                    $('#env-git-user-name').text(response.environment.GIT_USER_NAME);
-                    $('#env-git-user-email').text(response.environment.GIT_USER_EMAIL);
-                    $('#env-github-token').text(response.environment.GITHUB_TOKEN);
-                    $('#env-git-repo-url').text(response.environment.GIT_REPOSITORY_URL);
                 } else {
-                    showNotification('Error testing Git connectivity: ' + response.error, 'danger');
+                    $('#git-remote-access').html('<span class="text-warning"><i class="fas fa-exclamation-circle"></i> No remote configured</span>');
                 }
+                
+                // Changes status
+                if (response.has_changes) {
+                    $('#git-changes').html('<span class="text-warning"><i class="fas fa-exclamation-circle"></i> Uncommitted changes</span>');
+                } else {
+                    $('#git-changes').html('<span class="text-success"><i class="fas fa-check-circle"></i> No changes</span>');
+                }
+                
+                // Pending commits status
+                if (response.has_pending_commits) {
+                    $('#git-pending-commits').html(`
+                        <span class="text-warning">
+                            <i class="fas fa-exclamation-circle"></i> 
+                            ${response.pending_commits.length} unpushed commit(s)
+                        </span>
+                        <button id="view-pending-commits-btn" class="btn btn-sm btn-outline-info ms-2">View</button>
+                    `);
+                    
+                    // Add click handler for the "View" button
+                    $('#view-pending-commits-btn').on('click', function() {
+                        // Show a modal with the pending commits
+                        let commitsList = '';
+                        response.pending_commits.forEach(function(commit) {
+                            commitsList += `<li>${commit}</li>`;
+                        });
+                        
+                        // Create and show modal
+                        const modalHtml = `
+                            <div class="modal fade" id="pendingCommitsViewModal" tabindex="-1">
+                                <div class="modal-dialog">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Pending Commits</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <p>These commits have not been pushed to the remote repository:</p>
+                                            <ul>${commitsList}</ul>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                            <button type="button" class="btn btn-primary" id="handle-these-commits-btn">Handle These Commits</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        
+                        // Remove any existing modal
+                        $('#pendingCommitsViewModal').remove();
+                        
+                        // Add the modal to the page
+                        $('body').append(modalHtml);
+                        
+                        // Show the modal
+                        const modal = new bootstrap.Modal(document.getElementById('pendingCommitsViewModal'));
+                        modal.show();
+                        
+                        // Add click handler for the "Handle These Commits" button
+                        $('#handle-these-commits-btn').on('click', function() {
+                            modal.hide();
+                            $('#handle-commits-btn').click();
+                        });
+                    });
+                } else {
+                    $('#git-pending-commits').html('<span class="text-success"><i class="fas fa-check-circle"></i> No pending commits</span>');
+                }
+                
+                // Also update the environment variables in the form
+                $('#env-git-user-name-input').val(response.environment.GIT_USER_NAME !== 'Not set' ? response.environment.GIT_USER_NAME : '');
+                $('#env-git-user-email-input').val(response.environment.GIT_USER_EMAIL !== 'Not set' ? response.environment.GIT_USER_EMAIL : '');
+                $('#env-git-repo-url-input').val(response.environment.GIT_REPOSITORY_URL !== 'Not set' ? response.environment.GIT_REPOSITORY_URL : '');
+                $('#env-github-token-input').val(''); // Don't display the token for security
+                $('#env-git-auto-push-input').prop('checked', response.environment.GIT_AUTO_PUSH === 'true');
+                $('#env-allow-git-in-production-input').prop('checked', response.environment.ALLOW_GIT_IN_PRODUCTION === 'true');
+                
+                // Also refresh the Git status display
+                refreshGitStatus();
             },
             error: function(xhr) {
                 let errorMsg = 'Error testing Git connectivity';
@@ -474,7 +535,7 @@ $(document).ready(function() {
         }
     });
 
-    // Save changes to Git with transaction safety
+    // Save changes to Git with comprehensive error handling
     $(document).on('click', '#save-to-git-btn', function() {
         const message = prompt('Enter a commit message for your changes:', 'Update from web interface');
         if (!message) return; // User cancelled
@@ -491,7 +552,10 @@ $(document).ready(function() {
             url: '/api/git/save-changes',
             type: 'POST',
             contentType: 'application/json',
-            data: JSON.stringify({ message: message }),
+            data: JSON.stringify({ 
+                message: message,
+                auto_fix: true  // Enable automatic fixes
+            }),
             success: function(response) {
                 // Reset button
                 $btn.html(originalText);
@@ -516,28 +580,50 @@ $(document).ready(function() {
                     }
                 } else {
                     // Handle specific error types
-                    if (response.error_type === 'auth') {
-                        showNotification(response.error, 'danger');
-                        // Suggest fix
-                        if (confirm('Would you like to fix the authentication issue now?')) {
-                            $('#fix-credentials-btn').click();
-                        }
-                    } else if (response.error_type === 'rejected') {
-                        showNotification(response.error, 'danger');
-                        // Suggest fix
-                        if (confirm('Would you like to fix the rejected push issue now?')) {
-                            $('#fix-rejected-push-btn').click();
-                        }
-                    } else if (response.error_type === 'locked') {
-                        showNotification(response.error, 'warning');
-                        // Set a timer to try again
-                        setTimeout(function() {
-                            if (confirm('Another Git operation was in progress. Would you like to try saving again?')) {
-                                $('#save-to-git-btn').click();
+                    switch(response.error_type) {
+                        case 'auth':
+                            showNotification(response.error, 'danger');
+                            // Suggest fix
+                            if (confirm('Would you like to fix the authentication issue now?')) {
+                                $('#fix-credentials-btn').click();
                             }
-                        }, 5000);
-                    } else {
-                        showNotification('Error: ' + response.error, 'danger');
+                            break;
+                            
+                        case 'rejected':
+                            showNotification(response.error, 'danger');
+                            // Suggest fix
+                            if (confirm('Would you like to fix the rejected push issue now?')) {
+                                $('#fix-rejected-push-btn').click();
+                            }
+                            break;
+                            
+                        case 'locked':
+                            showNotification(response.error, 'warning');
+                            // Set a timer to try again
+                            setTimeout(function() {
+                                if (confirm('Another Git operation was in progress. Would you like to try saving again?')) {
+                                    $('#save-to-git-btn').click();
+                                }
+                            }, 5000);
+                            break;
+                            
+                        case 'no_remote':
+                        case 'invalid_remote':
+                            showNotification(response.error, 'danger');
+                            // Suggest fix
+                            if (confirm('Would you like to fix the remote repository configuration now?')) {
+                                $('#fix-remote-btn').click();
+                            }
+                            break;
+                            
+                        case 'head_state':
+                            showNotification(response.error, 'danger');
+                            // This is a more complex issue, just show a detailed message
+                            alert('Git HEAD state issue detected. This usually happens when Git is in "detached HEAD" state. The system will attempt to fix this automatically on the next save operation.');
+                            break;
+                            
+                        default:
+                            showNotification('Error: ' + response.error, 'danger');
                     }
                 }
             },
@@ -560,7 +646,7 @@ $(document).ready(function() {
         });
     });
 
-    // Function to refresh Git status
+    // Function to refresh Git status with comprehensive information
     function refreshGitStatus() {
         $.ajax({
             url: '/api/git/status',
@@ -589,6 +675,51 @@ $(document).ready(function() {
                                 </li>
                             `);
                         });
+                    }
+                    
+                    // Update last commit info if available
+                    if (response.last_commit) {
+                        $('#git-last-commit').html(`
+                            <strong>Last Commit:</strong> ${response.last_commit.hash} - 
+                            ${response.last_commit.message} (${response.last_commit.time} by ${response.last_commit.author})
+                        `);
+                    } else {
+                        $('#git-last-commit').text('No commits yet');
+                    }
+                    
+                    // Update pending commits section
+                    const $pendingCommitsList = $('#git-pending-commits-list');
+                    $pendingCommitsList.empty();
+                    
+                    if (response.pending_commits.length === 0) {
+                        $('#git-pending-commits-section').hide();
+                    } else {
+                        $('#git-pending-commits-section').show();
+                        response.pending_commits.forEach(function(commit) {
+                            $pendingCommitsList.append(`
+                                <li class="list-group-item">
+                                    <code>${commit.hash}</code> - ${commit.message}
+                                </li>
+                            `);
+                        });
+                        
+                        // Show a warning if there are pending commits
+                        if (!$('#pending-commits-warning').length) {
+                            $('#git-status-card .card-body').prepend(`
+                                <div id="pending-commits-warning" class="alert alert-warning">
+                                    <i class="fas fa-exclamation-triangle"></i> 
+                                    You have ${response.pending_commits.length} commit(s) that haven't been pushed to the remote.
+                                    <button id="handle-pending-btn" class="btn btn-sm btn-warning ms-2">
+                                        Handle Now
+                                    </button>
+                                </div>
+                            `);
+                            
+                            // Add click handler for the "Handle Now" button
+                            $('#handle-pending-btn').on('click', function() {
+                                $('#handle-commits-btn').click();
+                            });
+                        }
                     }
                 } else {
                     showNotification('Error refreshing Git status: ' + response.error, 'warning');

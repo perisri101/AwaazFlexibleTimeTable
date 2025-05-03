@@ -771,7 +771,7 @@ def restore_backup(backup_id):
 # Modified Git status route for production
 @app.route('/api/git/status', methods=['GET'])
 def git_status_api():
-    """Get current Git status information."""
+    """Get comprehensive Git status information."""
     try:
         # Get current branch
         try:
@@ -809,11 +809,39 @@ def git_status_api():
         except:
             commit_info = None
         
+        # Check for pending commits
+        pending_commits = []
+        try:
+            # Check if remote exists
+            remotes = subprocess.check_output(['git', 'remote']).decode().strip().split('\n')
+            has_remote = 'origin' in remotes
+            
+            if has_remote:
+                # Check for unpushed commits
+                unpushed_check = subprocess.run(
+                    ['git', 'log', f'origin/{current_branch}..{current_branch}', '--oneline'],
+                    check=False, capture_output=True, text=True
+                )
+                
+                if unpushed_check.returncode == 0 and unpushed_check.stdout.strip():
+                    for line in unpushed_check.stdout.strip().split('\n'):
+                        if line.strip():
+                            parts = line.strip().split(' ', 1)
+                            if len(parts) > 1:
+                                pending_commits.append({
+                                    'hash': parts[0],
+                                    'message': parts[1]
+                                })
+        except Exception as e:
+            app.logger.warning(f"Error checking for pending commits: {str(e)}")
+        
         return jsonify({
             'success': True,
             'branch': current_branch,
             'changes': changes,
-            'last_commit': commit_info
+            'last_commit': commit_info,
+            'pending_commits': pending_commits,
+            'has_pending_commits': len(pending_commits) > 0
         })
     except Exception as e:
         return jsonify({
@@ -871,63 +899,91 @@ def git_push():
 
 # Test endpoint for Git configuration
 @app.route('/api/git/test', methods=['GET'])
-def test_git_config():
-    """Test Git configuration and operations"""
+def test_git_api():
+    """Test Git connectivity without creating test files."""
+    results = {
+        'is_git_repo': False,
+        'branch': 'Unknown',
+        'has_changes': False,
+        'has_remote': False,
+        'can_access_remote': False,
+        'remote_error': None,
+        'has_pending_commits': False,
+        'pending_commits': [],
+        'environment': {
+            'GIT_AUTO_PUSH': os.environ.get('GIT_AUTO_PUSH', 'Not set'),
+            'ALLOW_GIT_IN_PRODUCTION': os.environ.get('ALLOW_GIT_IN_PRODUCTION', 'Not set'),
+            'GIT_USER_NAME': os.environ.get('GIT_USER_NAME', 'Not set'),
+            'GIT_USER_EMAIL': os.environ.get('GIT_USER_EMAIL', 'Not set'),
+            'GITHUB_TOKEN': 'Set' if os.environ.get('GITHUB_TOKEN') else 'Not set',
+            'GIT_REPOSITORY_URL': os.environ.get('GIT_REPOSITORY_URL', 'Not set')
+        }
+    }
+    
     try:
-        # Create a temporary test file
-        test_file_path = 'test_git_config.txt'
-        with open(test_file_path, 'w') as f:
-            f.write(f"Git test from {app.config['ENVIRONMENT']} environment\n")
-            f.write(f"Timestamp: {datetime.now().isoformat()}\n")
-            f.write(f"Server: {request.host}\n")
-            
-        # Get Git configuration
-        git_config = subprocess.run(
-            ["git", "config", "--list"],
-            check=True,
-            capture_output=True,
-            text=True
-        ).stdout
+        # Check if .git directory exists
+        results['is_git_repo'] = os.path.exists('.git')
         
-        # Try to add and commit the file (won't push)
-        add_result = subprocess.run(
-            ["git", "add", test_file_path],
-            check=True,
-            capture_output=True,
-            text=True
-        )
+        if not results['is_git_repo']:
+            return jsonify(results)
         
-        commit_result = subprocess.run(
-            ["git", "commit", "-m", f"Test commit from {app.config['ENVIRONMENT']} at {datetime.now().isoformat()}"],
-            check=True,
-            capture_output=True,
-            text=True
-        )
+        # Get current branch
+        try:
+            results['branch'] = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).decode().strip()
+        except:
+            results['branch'] = "Unknown"
         
-        # Test auto-push setting but don't actually push
-        auto_push = os.environ.get('GIT_AUTO_PUSH', 'false').lower() == 'true'
+        # Get status
+        try:
+            status_output = subprocess.check_output(['git', 'status', '--porcelain']).decode().strip()
+            changes = [line for line in status_output.split('\n') if line.strip()]
+            results['has_changes'] = len(changes) > 0
+        except:
+            results['has_changes'] = False
         
-        return jsonify({
-            "environment": app.config['ENVIRONMENT'],
-            "git_config": git_config.strip().split('\n'),
-            "auto_push_enabled": auto_push,
-            "test_file": test_file_path,
-            "add_result": add_result.stdout.strip(),
-            "commit_result": commit_result.stdout.strip(),
-            "success": True,
-            "message": "Git configuration test completed successfully"
-        })
-    except subprocess.CalledProcessError as e:
-        return jsonify({
-            "error": f"Git operation failed: {str(e)}",
-            "details": e.stderr,
-            "success": False
-        }), 500
+        # Get remote status
+        try:
+            remote_output = subprocess.check_output(['git', 'remote', '-v']).decode().strip()
+            remotes = [line for line in remote_output.split('\n') if line.strip()]
+            results['has_remote'] = len(remotes) > 0
+        except:
+            results['has_remote'] = False
+        
+        # Check if we can access the remote
+        if results['has_remote']:
+            try:
+                # Use ls-remote instead of creating a test file
+                result = subprocess.run(['git', 'ls-remote', '--heads', 'origin'], 
+                                      check=False, capture_output=True, text=True, timeout=5)
+                results['can_access_remote'] = result.returncode == 0
+                if not results['can_access_remote']:
+                    results['remote_error'] = result.stderr.strip()
+            except Exception as e:
+                results['remote_error'] = str(e)
+        
+        # Check for pending commits
+        if results['has_remote'] and results['branch'] != "Unknown":
+            try:
+                # Check for unpushed commits
+                current_branch = results['branch']
+                unpushed_check = subprocess.run(
+                    ['git', 'log', f'origin/{current_branch}..{current_branch}', '--oneline'],
+                    check=False, capture_output=True, text=True
+                )
+                
+                if unpushed_check.returncode == 0 and unpushed_check.stdout.strip():
+                    results['has_pending_commits'] = True
+                    results['pending_commits'] = [
+                        line.strip() for line in unpushed_check.stdout.strip().split('\n') if line.strip()
+                    ]
+            except Exception as e:
+                app.logger.warning(f"Error checking for pending commits: {str(e)}")
+        
+        return jsonify(results)
     except Exception as e:
-        return jsonify({
-            "error": f"Error: {str(e)}",
-            "success": False
-        }), 500
+        app.logger.error(f"Error testing Git: {str(e)}")
+        results['error'] = str(e)
+        return jsonify(results)
 
 # Diagnostic endpoint for Git configuration
 @app.route('/api/git/diagnose', methods=['GET'])
@@ -2144,7 +2200,7 @@ def fix_rejected_push():
 
 @app.route('/api/git/save-changes', methods=['POST'])
 def save_changes_api():
-    """Save changes to Git with proper error handling and transaction safety."""
+    """Save changes to Git with comprehensive error handling and auto-recovery."""
     # Create a lock file to prevent concurrent Git operations
     lock_file = os.path.join(os.getcwd(), '.git', 'awaaz_lock')
     
@@ -2169,15 +2225,73 @@ def save_changes_api():
         
         data = request.get_json()
         commit_message = data.get('message', 'Update from web interface')
+        auto_fix = data.get('auto_fix', True)  # Whether to attempt automatic fixes
         
-        # Step 1: Fetch latest changes to avoid conflicts
+        # Step 1: Check if we're in a detached HEAD state and fix if needed
         try:
-            fetch_result = subprocess.run(['git', 'fetch', 'origin'], 
-                                        check=False, capture_output=True, text=True, timeout=10)
+            head_state = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).decode().strip()
+            if head_state == 'HEAD':
+                app.logger.warning("Detected detached HEAD state, attempting to fix...")
+                # Try to checkout main branch
+                try:
+                    subprocess.run(['git', 'checkout', 'main'], check=True, capture_output=True)
+                    app.logger.info("Successfully checked out main branch")
+                except subprocess.CalledProcessError:
+                    # If main doesn't exist, try master
+                    try:
+                        subprocess.run(['git', 'checkout', 'master'], check=True, capture_output=True)
+                        app.logger.info("Successfully checked out master branch")
+                    except subprocess.CalledProcessError:
+                        # Create main branch if needed
+                        subprocess.run(['git', 'checkout', '-b', 'main'], check=True, capture_output=True)
+                        app.logger.info("Created and checked out new main branch")
         except Exception as e:
-            app.logger.warning(f"Fetch failed: {str(e)}")
+            app.logger.error(f"Error checking/fixing HEAD state: {str(e)}")
+            if not auto_fix:
+                os.remove(lock_file)  # Release lock
+                return jsonify({
+                    'success': False,
+                    'error': f"Error checking Git HEAD state: {str(e)}",
+                    'error_type': 'head_state'
+                })
         
-        # Step 2: Check Git status
+        # Step 2: Check if remote exists and fix if needed
+        try:
+            remotes = subprocess.check_output(['git', 'remote']).decode().strip().split('\n')
+            if not remotes or 'origin' not in remotes:
+                if auto_fix:
+                    # Try to add remote from environment variable
+                    repo_url = os.environ.get('GIT_REPOSITORY_URL')
+                    if repo_url:
+                        if 'origin' in remotes:
+                            subprocess.run(['git', 'remote', 'remove', 'origin'], check=True)
+                        subprocess.run(['git', 'remote', 'add', 'origin', repo_url], check=True)
+                        app.logger.info(f"Added missing remote 'origin' with URL: {repo_url}")
+                    else:
+                        os.remove(lock_file)  # Release lock
+                        return jsonify({
+                            'success': False,
+                            'error': "Remote 'origin' not configured and GIT_REPOSITORY_URL not set. Please use 'Fix Remote Repository' button.",
+                            'error_type': 'no_remote'
+                        })
+                else:
+                    os.remove(lock_file)  # Release lock
+                    return jsonify({
+                        'success': False,
+                        'error': "Remote 'origin' not configured. Please use 'Fix Remote Repository' button.",
+                        'error_type': 'no_remote'
+                    })
+        except Exception as e:
+            app.logger.error(f"Error checking/fixing remote: {str(e)}")
+            if not auto_fix:
+                os.remove(lock_file)  # Release lock
+                return jsonify({
+                    'success': False,
+                    'error': f"Error checking Git remote: {str(e)}",
+                    'error_type': 'remote_check'
+                })
+        
+        # Step 3: Check Git status
         status_result = subprocess.run(['git', 'status', '--porcelain'], 
                                      check=False, capture_output=True, text=True)
         
@@ -2189,17 +2303,35 @@ def save_changes_api():
                 'status': 'no_changes'
             })
         
-        # Step 3: Stage changes
+        # Step 4: Configure git identity if not already set
+        try:
+            try:
+                user_name = subprocess.check_output(['git', 'config', 'user.name']).decode().strip()
+            except subprocess.CalledProcessError:
+                git_user_name = os.environ.get('GIT_USER_NAME', 'awaaz-user')
+                subprocess.run(['git', 'config', 'user.name', git_user_name], check=True)
+                
+            try:
+                user_email = subprocess.check_output(['git', 'config', 'user.email']).decode().strip()
+            except subprocess.CalledProcessError:
+                git_user_email = os.environ.get('GIT_USER_EMAIL', 'awaaz@example.com')
+                subprocess.run(['git', 'config', 'user.email', git_user_email], check=True)
+        except Exception as e:
+            app.logger.warning(f"Error configuring Git identity: {str(e)}")
+            # Continue anyway, as this might not be critical
+        
+        # Step 5: Stage changes
         try:
             subprocess.run(['git', 'add', '.'], check=True)
         except subprocess.CalledProcessError as e:
             os.remove(lock_file)  # Release lock
             return jsonify({
                 'success': False,
-                'error': f"Failed to stage changes: {e.stderr if e.stderr else str(e)}"
+                'error': f"Failed to stage changes: {e.stderr if e.stderr else str(e)}",
+                'error_type': 'staging'
             })
         
-        # Step 4: Commit changes
+        # Step 6: Commit changes
         try:
             commit_result = subprocess.run(['git', 'commit', '-m', commit_message], 
                                          check=False, capture_output=True, text=True)
@@ -2208,23 +2340,26 @@ def save_changes_api():
                 os.remove(lock_file)  # Release lock
                 return jsonify({
                     'success': False,
-                    'error': f"Failed to commit changes: {commit_result.stderr}"
+                    'error': f"Failed to commit changes: {commit_result.stderr}",
+                    'error_type': 'commit'
                 })
         except Exception as e:
             os.remove(lock_file)  # Release lock
             return jsonify({
                 'success': False,
-                'error': f"Error during commit: {str(e)}"
+                'error': f"Error during commit: {str(e)}",
+                'error_type': 'commit'
             })
         
-        # Step 5: Try to push changes
+        # Step 7: Try to push changes
         try:
-            # First try to pull with rebase to integrate any remote changes
+            # Get current branch
             try:
                 current_branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).decode().strip()
             except:
                 current_branch = 'main'  # Default to main if we can't determine current branch
-                
+            
+            # First try to pull with rebase to integrate any remote changes
             pull_result = subprocess.run(['git', 'pull', '--rebase', 'origin', current_branch], 
                                        check=False, capture_output=True, text=True, timeout=10)
             
@@ -2235,8 +2370,32 @@ def save_changes_api():
             # Handle push errors
             if push_result.returncode != 0:
                 # Check for common errors
-                if "could not read Username" in push_result.stderr:
+                if "could not read Username" in push_result.stderr or "Authentication failed" in push_result.stderr:
                     # Authentication issue
+                    if auto_fix and os.environ.get('GITHUB_TOKEN'):
+                        # Try to fix authentication by updating remote URL with token
+                        repo_url = os.environ.get('GIT_REPOSITORY_URL', '')
+                        if repo_url and 'github.com' in repo_url:
+                            token = os.environ.get('GITHUB_TOKEN')
+                            # Add token to URL if it doesn't already have it
+                            if 'https://' in repo_url and '@github.com' not in repo_url:
+                                new_url = repo_url.replace('https://', f'https://{token}@')
+                                subprocess.run(['git', 'remote', 'set-url', 'origin', new_url], check=True)
+                                app.logger.info("Updated remote URL with authentication token")
+                                
+                                # Try push again
+                                push_retry = subprocess.run(['git', 'push', 'origin', current_branch], 
+                                                         check=False, capture_output=True, text=True)
+                                
+                                if push_retry.returncode == 0:
+                                    os.remove(lock_file)  # Release lock
+                                    return jsonify({
+                                        'success': True,
+                                        'message': "Changes saved and pushed to remote repository (auth fixed automatically)",
+                                        'status': 'pushed'
+                                    })
+                    
+                    # If auto-fix didn't work or wasn't attempted
                     os.remove(lock_file)  # Release lock
                     return jsonify({
                         'success': False,
@@ -2250,6 +2409,35 @@ def save_changes_api():
                         'success': False,
                         'error': "Remote has changes you don't have. Please use 'Pull & Reset' or 'Fix Rejected Push' button.",
                         'error_type': 'rejected'
+                    })
+                elif "'origin' does not appear to be a git repository" in push_result.stderr:
+                    # Remote is not properly configured
+                    if auto_fix:
+                        # Try to fix remote
+                        repo_url = os.environ.get('GIT_REPOSITORY_URL')
+                        if repo_url:
+                            subprocess.run(['git', 'remote', 'remove', 'origin'], check=False)
+                            subprocess.run(['git', 'remote', 'add', 'origin', repo_url], check=True)
+                            app.logger.info(f"Fixed remote 'origin' with URL: {repo_url}")
+                            
+                            # Try push again
+                            push_retry = subprocess.run(['git', 'push', 'origin', current_branch], 
+                                                     check=False, capture_output=True, text=True)
+                            
+                            if push_retry.returncode == 0:
+                                os.remove(lock_file)  # Release lock
+                                return jsonify({
+                                    'success': True,
+                                    'message': "Changes saved and pushed to remote repository (remote fixed automatically)",
+                                    'status': 'pushed'
+                                })
+                    
+                    # If auto-fix didn't work or wasn't attempted
+                    os.remove(lock_file)  # Release lock
+                    return jsonify({
+                        'success': False,
+                        'error': "Remote repository is not properly configured. Please use 'Fix Remote Repository' button.",
+                        'error_type': 'invalid_remote'
                     })
                 else:
                     # Other push error

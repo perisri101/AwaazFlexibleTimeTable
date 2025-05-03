@@ -252,34 +252,52 @@
                     <div id="backups" class="content-section">
                         <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
                             <h1 class="h2">Backups & Git</h1>
-                            <div>
-                                <button id="backup-data-btn" class="btn btn-primary">
-                                    <i class="fa-solid fa-download"></i> Backup Data
-                                </button>
-                                <button id="test-git-btn" class="btn btn-info">
-                                    <i class="fa-brands fa-github"></i> Test Git Connectivity
-                                </button>
-                                <button id="update-gitignore-btn" class="btn btn-secondary">
-                                    <i class="fas fa-file-code"></i> Update .gitignore
-                                </button>
-                                <button id="fix-credentials-btn" class="btn btn-warning">
-                                    <i class="fas fa-key"></i> Fix Git Credentials
-                                </button>
-                                <button id="update-repo-url-with-auth-btn" class="btn btn-sm btn-outline-info">
-                                    <i class="fas fa-key"></i> Add Auth to URL
-                                </button>
-                                <button id="fix-rejected-push-btn" class="btn btn-warning">
-                                    <i class="fas fa-code-branch"></i> Fix Rejected Push
-                                </button>
-                                <button id="save-to-git-btn" class="btn btn-success">
-                                    <i class="fas fa-save"></i> Save to Git
-                                </button>
-                                <button id="fix-remote-btn" class="btn btn-warning">
-                                    <i class="fas fa-server"></i> Fix Remote Repository
-                                </button>
-                                <button id="handle-commits-btn" class="btn btn-info">
-                                    <i class="fas fa-code-commit"></i> Handle Pending Commits
-                                </button>
+                            <div class="btn-toolbar mb-3" role="toolbar">
+                                <!-- Data Management -->
+                                <div class="btn-group me-2 mb-2" role="group">
+                                    <button id="backup-data-btn" class="btn btn-primary">
+                                        <i class="fa-solid fa-download"></i> Backup Data
+                                    </button>
+                                </div>
+                                
+                                <!-- Git Status & Testing -->
+                                <div class="btn-group me-2 mb-2" role="group">
+                                    <button id="test-git-btn" class="btn btn-info">
+                                        <i class="fa-brands fa-github"></i> Test Connectivity
+                                    </button>
+                                    <button id="save-to-git-btn" class="btn btn-success">
+                                        <i class="fas fa-save"></i> Save Changes
+                                    </button>
+                                </div>
+                                
+                                <!-- Git Troubleshooting -->
+                                <div class="btn-group me-2 mb-2" role="group">
+                                    <div class="dropdown">
+                                        <button class="btn btn-warning dropdown-toggle" type="button" id="gitFixDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                            <i class="fas fa-wrench"></i> Fix Git Issues
+                                        </button>
+                                        <ul class="dropdown-menu" aria-labelledby="gitFixDropdown">
+                                            <li><a class="dropdown-item" href="#" id="fix-remote-btn">
+                                                <i class="fas fa-server"></i> Fix Remote Repository
+                                            </a></li>
+                                            <li><a class="dropdown-item" href="#" id="fix-credentials-btn">
+                                                <i class="fas fa-key"></i> Fix Git Credentials
+                                            </a></li>
+                                            <li><a class="dropdown-item" href="#" id="update-repo-url-with-auth-btn">
+                                                <i class="fas fa-key"></i> Add Auth to URL
+                                            </a></li>
+                                            <li><a class="dropdown-item" href="#" id="fix-rejected-push-btn">
+                                                <i class="fas fa-code-branch"></i> Fix Rejected Push
+                                            </a></li>
+                                            <li><a class="dropdown-item" href="#" id="handle-commits-btn">
+                                                <i class="fas fa-code-commit"></i> Handle Pending Commits
+                                            </a></li>
+                                            <li><a class="dropdown-item" href="#" id="update-gitignore-btn">
+                                                <i class="fas fa-file-code"></i> Update .gitignore
+                                            </a></li>
+                                        </ul>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         
@@ -539,7 +557,7 @@
                         <div class="row">
                             <!-- Git Status Panel -->
                             <div class="col-md-5 mb-4">
-                                <div class="card">
+                                <div class="card" id="git-status-card">
                                     <div class="card-header d-flex justify-content-between align-items-center">
                                         <h5 class="mb-0">Git Status</h5>
                                         <button id="refresh-git-status-btn" class="btn btn-sm btn-outline-secondary">
@@ -549,13 +567,20 @@
                                     <div class="card-body">
                                         <div class="mb-3">
                                             <p><strong>Current Branch:</strong> <span id="git-branch">Loading...</span></p>
+                                            <p id="git-last-commit">Loading commit info...</p>
                                             <p><strong>Pending Changes:</strong> <span id="git-changes-count">0</span></p>
                                         </div>
-                                        <div class="table-responsive">
+                                        
+                                        <div class="mb-3">
                                             <h6>Change Details:</h6>
                                             <ul class="list-group" id="git-changes-list">
                                                 <li class="list-group-item">Loading...</li>
                                             </ul>
+                                        </div>
+                                        
+                                        <div id="git-pending-commits-section" class="mb-3" style="display: none;">
+                                            <h6>Pending Commits:</h6>
+                                            <ul class="list-group" id="git-pending-commits-list"></ul>
                                         </div>
                                     </div>
                                 </div>
