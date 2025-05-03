@@ -2293,13 +2293,21 @@ def save_changes_api():
         
         # Step 3: Check Git status
         status_result = subprocess.run(['git', 'status', '--porcelain'], 
-                                     check=False, capture_output=True, text=True)
+                                      check=False, capture_output=True, text=True)
+        
+        if status_result.returncode != 0:
+            os.remove(lock_file)  # Release lock
+            return jsonify({
+                'success': False,
+                'error': f"Failed to check Git status: {status_result.stderr}",
+                'error_type': 'status'
+            })
         
         if not status_result.stdout.strip():
             os.remove(lock_file)  # Release lock
             return jsonify({
                 'success': True,
-                'message': "No changes to save",
+                'message': "No changes to commit",
                 'status': 'no_changes'
             })
         
@@ -2336,7 +2344,7 @@ def save_changes_api():
             commit_result = subprocess.run(['git', 'commit', '-m', commit_message], 
                                          check=False, capture_output=True, text=True)
             
-            if commit_result.returncode != 0 and "nothing to commit" not in commit_result.stderr:
+            if commit_result.returncode != 0 and "nothing to commit" not in commit_result.stdout and "nothing to commit" not in commit_result.stderr:
                 os.remove(lock_file)  # Release lock
                 return jsonify({
                     'success': False,
@@ -2361,13 +2369,12 @@ def save_changes_api():
             
             # First try to pull with rebase to integrate any remote changes
             pull_result = subprocess.run(['git', 'pull', '--rebase', 'origin', current_branch], 
-                                       check=False, capture_output=True, text=True, timeout=10)
+                                        check=False, capture_output=True, text=True, timeout=10)
             
-            # Now push
+            # Try to push
             push_result = subprocess.run(['git', 'push', 'origin', current_branch], 
-                                       check=False, capture_output=True, text=True)
+                                        check=False, capture_output=True, text=True)
             
-            # Handle push errors
             if push_result.returncode != 0:
                 # Check for common errors
                 if "could not read Username" in push_result.stderr or "Authentication failed" in push_result.stderr:
@@ -2400,14 +2407,14 @@ def save_changes_api():
                     return jsonify({
                         'success': False,
                         'error': "Authentication failed. Please use 'Fix Git Credentials' button.",
-                        'error_type': 'auth'
+                        'error_type': 'auth'  # This was missing in the original code
                     })
                 elif "Updates were rejected" in push_result.stderr:
-                    # Remote has changes we don't have
+                    # Rejected push
                     os.remove(lock_file)  # Release lock
                     return jsonify({
                         'success': False,
-                        'error': "Remote has changes you don't have. Please use 'Pull & Reset' or 'Fix Rejected Push' button.",
+                        'error': "Push was rejected by remote repository. Please use 'Fix Rejected Push' button.",
                         'error_type': 'rejected'
                     })
                 elif "'origin' does not appear to be a git repository" in push_result.stderr:
