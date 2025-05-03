@@ -353,4 +353,52 @@ select[multiple] option:checked {
     }
 }
 
-/* Additional styles can be added here */ 
+/* Additional styles can be added here */
+
+/* Schedule table styling */
+.schedule-table {
+    table-layout: fixed;
+}
+
+.schedule-table th, .schedule-table td {
+    text-align: center;
+    vertical-align: middle;
+}
+
+.schedule-cell {
+    height: 60px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    position: relative;
+}
+
+.schedule-cell:hover {
+    background-color: #f8f9fa;
+}
+
+.schedule-cell.has-content {
+    background-color: #e9f7ef;
+}
+
+.schedule-cell.has-content:hover {
+    background-color: #d5f5e3;
+}
+
+.cell-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+}
+
+.caregivers-count, .activities-count {
+    font-size: 0.8rem;
+    margin: 2px 0;
+}
+
+/* Modal styling */
+.assigned-caregivers-container, .assigned-activities-container {
+    max-height: 250px;
+    overflow-y: auto;
+} 

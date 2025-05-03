@@ -563,6 +563,41 @@ def delete_template(id):
     except FileNotFoundError:
         return jsonify({"error": "Template not found"}), 404
 
+@app.route('/api/templates/<template_id>/schedule', methods=['PUT'])
+def update_template_schedule(template_id):
+    """Update a template's schedule."""
+    try:
+        data = request.get_json()
+        
+        # Load the template
+        template_path = os.path.join('data', 'templates', f"{template_id}.json")
+        if not os.path.exists(template_path):
+            return jsonify({
+                'success': False,
+                'error': 'Template not found'
+            }), 404
+            
+        with open(template_path, 'r') as f:
+            template = json.load(f)
+            
+        # Update the schedule
+        template['schedule'] = data
+        
+        # Save the template
+        with open(template_path, 'w') as f:
+            json.dump(template, f, indent=4)
+            
+        return jsonify({
+            'success': True,
+            'message': 'Schedule updated successfully'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 # API Routes for Calendars
 @app.route('/api/calendars', methods=['GET'])
 def get_calendars():
@@ -2707,6 +2742,22 @@ def handle_pending_commits_api():
             'success': False,
             'error': str(e)
         }), 500
+
+# Example of how to initialize an empty schedule template with 24-hour coverage
+def create_empty_schedule_template():
+    days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+    time_slots = [
+        '00-02', '02-04', '04-06', '06-08', '08-10', '10-12',
+        '12-14', '14-16', '16-18', '18-20', '20-22', '22-24'
+    ]
+    
+    schedule = {}
+    for day in days:
+        schedule[day] = {}
+        for time_slot in time_slots:
+            schedule[day][time_slot] = []
+    
+    return schedule
 
 if __name__ == '__main__':
     # Use environment variables for host and port if available

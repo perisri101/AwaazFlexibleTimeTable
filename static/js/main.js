@@ -1,3 +1,6 @@
+// Add this at the top of your main.js file
+console.log('Main.js loaded');
+
 // Global state
 let categories = [];
 let caregivers = [];
@@ -11,6 +14,22 @@ let gitStatus = {};
 
 // DOM Ready
 $(document).ready(function() {
+    console.log('Document ready in main.js');
+    
+    // Test if jQuery is working
+    if (typeof $ === 'function') {
+        console.log('jQuery is working');
+    } else {
+        console.error('jQuery is not working');
+    }
+    
+    // Test if Bootstrap is working
+    if (typeof bootstrap !== 'undefined') {
+        console.log('Bootstrap is working');
+    } else {
+        console.error('Bootstrap is not working');
+    }
+    
     // Initialize the application
     initApp();
     
@@ -29,6 +48,9 @@ $(document).ready(function() {
         
         // Load section data if needed
         loadSectionData(section);
+        
+        // Log when navigation items are clicked
+        console.log(`Navigation clicked: ${section}`);
     });
     
     // Add button event handlers
@@ -883,6 +905,13 @@ $(document).ready(function() {
             }
         });
     });
+
+    // Debug template loading
+    if (typeof loadTemplates === 'function') {
+        console.log("loadTemplates function exists");
+    } else {
+        console.error("loadTemplates function is missing!");
+    }
 });
 
 // Initialize application
@@ -893,6 +922,8 @@ function initApp() {
 
 // Load data for a specific section
 function loadSectionData(section) {
+    console.log(`Loading data for section: ${section}`);
+    
     switch(section) {
         case 'dashboard':
             loadDashboardData();
@@ -904,20 +935,13 @@ function loadSectionData(section) {
             loadCategories();
             break;
         case 'activities':
-            loadCategories().then(() => {
-                loadActivities();
-                populateCategorySelect('#activity-category');
-                populateCategorySelect('#filter-category');
-            });
+            loadActivities();
             break;
         case 'templates':
             loadTemplates();
             break;
         case 'calendars':
-            loadTemplates().then(() => {
-                loadCalendars();
-                populateTemplateSelect('#calendar-template');
-            });
+            loadCalendars();
             break;
         case 'backups':
             loadBackups();
@@ -1821,4 +1845,42 @@ $(document).on('click', '#save-env-btn', function() {
 $(document).on('click', '#refresh-env-btn', function() {
     loadEnvironmentVariables();
     showNotification('Environment variables refreshed', 'info');
-}); 
+});
+
+// Add this function to main.js if it's missing
+function loadTemplates() {
+    return $.get('/api/templates', function(data) {
+        window.templates = data;
+        populateTemplates();
+    }).fail(function(error) {
+        console.error("Failed to load templates:", error);
+        showNotification('Failed to load templates', 'danger');
+    });
+}
+
+// Make sure this function exists
+function loadSectionData(section) {
+    console.log(`Loading data for section: ${section}`);
+    
+    switch(section) {
+        case 'dashboard':
+            loadDashboardData();
+            break;
+        case 'caregivers':
+            loadCaregivers();
+            break;
+        case 'categories':
+            loadCategories();
+            break;
+        case 'activities':
+            loadActivities();
+            break;
+        case 'templates':
+            loadTemplates();
+            break;
+        case 'calendars':
+            loadCalendars();
+            break;
+        // Add other sections as needed
+    }
+} 
