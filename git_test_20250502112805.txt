@@ -1,3 +1,0 @@
-Git connectivity test
-Date: 2025-05-02T11:28:05.311853
-Server: 127.0.0.1:8000
